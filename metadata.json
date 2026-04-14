@@ -1,0 +1,8 @@
+{
+  "name": "AfriSommelier AI",
+  "description": "An African wine discovery engine and AI Sommelier featuring local food pairing, taste DNA profiling, and smart cellar management.",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": []
+}

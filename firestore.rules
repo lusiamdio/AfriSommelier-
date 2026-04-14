@@ -1,0 +1,102 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function hasOnlyAllowedFields(allowedFields) {
+      return request.resource.data.keys().hasOnly(allowedFields);
+    }
+
+    function isValidStringLength(field, min, max) {
+      return request.resource.data[field] is string && 
+             request.resource.data[field].size() >= min && 
+             request.resource.data[field].size() <= max;
+    }
+
+    // User Profile Validation
+    function isValidUserProfile() {
+      let allowedFields = ['uid', 'email', 'displayName', 'preferences', 'createdAt'];
+      return hasOnlyAllowedFields(allowedFields) &&
+             request.resource.data.uid == request.auth.uid &&
+             request.resource.data.email is string &&
+             (!('displayName' in request.resource.data) || isValidStringLength('displayName', 0, 100)) &&
+             (!('createdAt' in request.resource.data) || request.resource.data.createdAt is string);
+    }
+
+    // Cellar Wine Validation
+    function isValidCellarWine(userId) {
+      let allowedFields = ['userId', 'name', 'vintage', 'region', 'grape', 'status', 'statusColor', 'image', 'rating', 'awards', 'abv', 'isOrganic', 'caloriesPerGlass', 'price', 'notes', 'createdAt'];
+      return hasOnlyAllowedFields(allowedFields) &&
+             request.resource.data.userId == userId &&
+             isValidStringLength('name', 1, 200) &&
+             (!('vintage' in request.resource.data) || isValidStringLength('vintage', 0, 50)) &&
+             (!('region' in request.resource.data) || isValidStringLength('region', 0, 100)) &&
+             (!('grape' in request.resource.data) || isValidStringLength('grape', 0, 100)) &&
+             (!('status' in request.resource.data) || isValidStringLength('status', 0, 50)) &&
+             (!('statusColor' in request.resource.data) || isValidStringLength('statusColor', 0, 50)) &&
+             (!('image' in request.resource.data) || isValidStringLength('image', 0, 1000)) &&
+             (!('rating' in request.resource.data) || request.resource.data.rating is number) &&
+             (!('awards' in request.resource.data) || isValidStringLength('awards', 0, 200)) &&
+             (!('abv' in request.resource.data) || isValidStringLength('abv', 0, 50)) &&
+             (!('isOrganic' in request.resource.data) || request.resource.data.isOrganic is bool) &&
+             (!('caloriesPerGlass' in request.resource.data) || request.resource.data.caloriesPerGlass is number) &&
+             (!('price' in request.resource.data) || isValidStringLength('price', 0, 50)) &&
+             (!('notes' in request.resource.data) || isValidStringLength('notes', 0, 2000)) &&
+             (!('createdAt' in request.resource.data) || request.resource.data.createdAt is string);
+    }
+
+    function isValidWishlistWine() {
+      return isValidStringLength('name', 1, 200);
+    }
+
+    function isValidTasteDNA() {
+      return request.resource.data.profile is map;
+    }
+
+    function isValidConsumption() {
+      return isValidStringLength('wineName', 1, 200) &&
+             request.resource.data.calories is number &&
+             request.resource.data.date is string;
+    }
+
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUserProfile();
+      allow update: if isOwner(userId) && isValidUserProfile() && request.resource.data.uid == resource.data.uid;
+      
+      match /cellar/{wineId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidCellarWine(userId);
+        allow update: if isOwner(userId) && isValidCellarWine(userId) && request.resource.data.userId == resource.data.userId;
+        allow delete: if isOwner(userId);
+      }
+      
+      match /wishlist/{wineId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidWishlistWine();
+        allow update: if isOwner(userId) && isValidWishlistWine();
+        allow delete: if isOwner(userId);
+      }
+
+      match /profile/tasteDNA {
+        allow read: if isOwner(userId);
+        allow write: if isOwner(userId) && isValidTasteDNA();
+      }
+
+      match /consumption/{consumptionId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidConsumption();
+        allow update: if isOwner(userId) && isValidConsumption();
+        allow delete: if isOwner(userId);
+      }
+    }
+  }
+}

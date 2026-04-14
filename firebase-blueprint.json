@@ -1,0 +1,99 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile and preferences",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "preferences": {
+          "type": "object",
+          "properties": {
+            "sweetness": { "type": "number" },
+            "body": { "type": "number" }
+          }
+        },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email"]
+    },
+    "CellarWine": {
+      "title": "CellarWine",
+      "description": "A wine saved in the user's cellar",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "vintage": { "type": "string" },
+        "region": { "type": "string" },
+        "grape": { "type": "string" },
+        "status": { "type": "string" },
+        "statusColor": { "type": "string" },
+        "image": { "type": "string" },
+        "rating": { "type": "number" },
+        "awards": { "type": "string" },
+        "abv": { "type": "string" },
+        "isOrganic": { "type": "boolean" },
+        "caloriesPerGlass": { "type": "number" },
+        "price": { "type": "string" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "name"]
+    },
+    "WishlistWine": {
+      "title": "WishlistWine",
+      "description": "A wine saved in the user's wishlist",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "addedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name"]
+    },
+    "TasteDNA": {
+      "title": "TasteDNA",
+      "description": "User's taste profile",
+      "type": "object",
+      "properties": {
+        "profile": { "type": "object" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "Consumption": {
+      "title": "Consumption",
+      "description": "A logged glass of wine",
+      "type": "object",
+      "properties": {
+        "wineName": { "type": "string" },
+        "calories": { "type": "number" },
+        "date": { "type": "string", "format": "date-time" }
+      },
+      "required": ["wineName", "calories", "date"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "User profiles"
+    },
+    "/users/{userId}/cellar/{wineId}": {
+      "schema": { "$ref": "#/entities/CellarWine" },
+      "description": "User's saved wines"
+    },
+    "/users/{userId}/wishlist/{wineId}": {
+      "schema": { "$ref": "#/entities/WishlistWine" },
+      "description": "User's wishlist wines"
+    },
+    "/users/{userId}/profile/tasteDNA": {
+      "schema": { "$ref": "#/entities/TasteDNA" },
+      "description": "User's taste DNA profile"
+    },
+    "/users/{userId}/consumption/{consumptionId}": {
+      "schema": { "$ref": "#/entities/Consumption" },
+      "description": "User's logged wine consumption"
+    }
+  }
+}
