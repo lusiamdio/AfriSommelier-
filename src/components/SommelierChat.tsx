@@ -3,27 +3,96 @@ import { motion, AnimatePresence } from 'motion/react';
 import { X, Send, Mic, Sparkles, ChevronRight } from 'lucide-react';
 import { GoogleGenAI, Type, Schema } from '@google/genai';
 import WinePourLoader from './WinePourLoader';
+import { WINE_FARMS_KNOWLEDGE } from '../data/wineKnowledge';
+import { WINE_COURSE_KNOWLEDGE } from '../data/educationalCourseKnowledge';
+import { WINE_WISE_KNOWLEDGE } from '../data/wineWiseKnowledge';
 
-export default function SommelierChat({ onClose }: { onClose: () => void }) {
-  const [messages, setMessages] = useState<{role: 'user' | 'model', text: string, data?: any}[]>([
-    { role: 'model', text: 'Good evening. I am your AI Sommelier. What are we drinking tonight?' }
-  ]);
+export default function SommelierChat({ onClose, initialMessage }: { onClose: () => void, initialMessage?: { role: 'user' | 'model', text: string, autoVoice?: boolean } | null }) {
+  const [messages, setMessages] = useState<{role: 'user' | 'model', text: string, data?: any}[]>(() => {
+    if (initialMessage && initialMessage.role === 'model') {
+      return [{ role: 'model', text: initialMessage.text }];
+    }
+    return [{ role: 'model', text: 'Good evening. I am your AI Sommelier. What are we drinking tonight?' }];
+  });
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isListening, setIsListening] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const recognitionRef = useRef<any>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
   useEffect(() => {
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      recognitionRef.current = new SpeechRecognition();
+      recognitionRef.current.continuous = false;
+      recognitionRef.current.interimResults = true;
+      recognitionRef.current.lang = 'en-ZA'; // South African English
+
+      recognitionRef.current.onresult = (event: any) => {
+        let interimTranscript = '';
+        let finalTranscript = '';
+
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            finalTranscript += event.results[i][0].transcript;
+          } else {
+            interimTranscript += event.results[i][0].transcript;
+          }
+        }
+        
+        if (finalTranscript) {
+          setInput(finalTranscript);
+          handleSend(finalTranscript);
+        } else {
+          setInput(interimTranscript);
+        }
+      };
+
+      recognitionRef.current.onerror = (event: any) => {
+        console.error("Speech recognition error", event.error);
+        setIsListening(false);
+      };
+
+      recognitionRef.current.onend = () => {
+        setIsListening(false);
+      };
+    }
+
+    if (initialMessage?.autoVoice) {
+      toggleListening();
+    }
+  }, []);
+
+  const toggleListening = () => {
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+    } else {
+      setInput('');
+      recognitionRef.current?.start();
+      setIsListening(true);
+    }
+  };
+
+  useEffect(() => {
     scrollToBottom();
   }, [messages, isLoading]);
 
-  const handleSend = async () => {
-    if (!input.trim() || isLoading) return;
+  // Handle initial user message if provided
+  useEffect(() => {
+    if (initialMessage && initialMessage.role === 'user') {
+      handleSend(initialMessage.text);
+    }
+  }, [initialMessage]);
 
-    const userMsg = input.trim();
+  const handleSend = async (overrideInput?: string) => {
+    const userMsg = overrideInput || input.trim();
+    if (!userMsg || isLoading) return;
+
     setInput('');
     setMessages(prev => [...prev, { role: 'user', text: userMsg }]);
     setIsLoading(true);
@@ -66,7 +135,16 @@ export default function SommelierChat({ onClose }: { onClose: () => void }) {
         model: "gemini-3-flash-preview",
         contents: contents as any,
         config: {
-          systemInstruction: "You are a Master Sommelier specializing in South African wines. Keep your answers concise, elegant, and helpful.",
+          systemInstruction: `You are a Master Sommelier specializing in South African wines. Keep your answers concise, elegant, and helpful.
+          
+          Here is some specific knowledge about South African wine farms and their 2026 rankings:
+          ${WINE_FARMS_KNOWLEDGE}
+          
+          Here is the official South African Wine Educational Course knowledge:
+          ${WINE_COURSE_KNOWLEDGE}
+          
+          Here is the Wine Wise South African Wine Knowledge:
+          ${WINE_WISE_KNOWLEDGE}`,
           responseMimeType: "application/json",
           responseSchema: responseSchema
         }
@@ -170,7 +248,10 @@ export default function SommelierChat({ onClose }: { onClose: () => void }) {
         </div>
         
         <div className="relative flex items-center">
-          <button className="absolute left-4 text-gray-400 hover:text-gold-500 transition-colors">
+          <button 
+            onClick={toggleListening}
+            className={`absolute left-4 transition-colors ${isListening ? 'text-pink-500 animate-pulse' : 'text-gray-400 hover:text-gold-500'}`}
+          >
             <Mic size={20} />
           </button>
           <input 
@@ -178,7 +259,7 @@ export default function SommelierChat({ onClose }: { onClose: () => void }) {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-            placeholder="Ask your sommelier..." 
+            placeholder={isListening ? "Listening..." : "Ask your sommelier..."} 
             className="w-full bg-glass border border-glass-border rounded-full py-4 pl-12 pr-14 text-sm text-ivory placeholder-gray-400 focus:outline-none focus:border-gold-500 transition-colors"
           />
           <button 

@@ -72,6 +72,19 @@
         "date": { "type": "string", "format": "date-time" }
       },
       "required": ["wineName", "calories", "date"]
+    },
+    "TastingEvent": {
+      "title": "TastingEvent",
+      "description": "A scheduled wine tasting event",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "date": { "type": "string" },
+        "time": { "type": "string" },
+        "location": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "date"]
     }
   },
   "firestore": {
@@ -94,6 +107,10 @@
     "/users/{userId}/consumption/{consumptionId}": {
       "schema": { "$ref": "#/entities/Consumption" },
       "description": "User's logged wine consumption"
+    },
+    "/users/{userId}/events/{eventId}": {
+      "schema": { "$ref": "#/entities/TastingEvent" },
+      "description": "User's scheduled tasting events"
     }
   }
 }

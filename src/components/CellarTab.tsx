@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Plus, Heart, Wine } from 'lucide-react';
 import { collection, query, onSnapshot } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { handleFirestoreError, OperationType } from '../utils/firestoreErrorHandler';
+import AddWineModal from './AddWineModal';
 
 function calculateSmartAlert(vintage: string) {
   const currentYear = new Date().getFullYear();
@@ -17,13 +18,15 @@ function calculateSmartAlert(vintage: string) {
   return { status: 'Hold ⏳', color: 'text-blue-400' };
 }
 
-export default function CellarTab({ onSelectWine }: { onSelectWine: (wine: any) => void }) {
+export default function CellarTab({ onSelectWine, onNavigate }: { onSelectWine: (wine: any) => void, onNavigate: (tab: string, state?: any) => void }) {
   const [wines, setWines] = useState<any[]>([]);
   const [wishlist, setWishlist] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'cellar' | 'wishlist'>('cellar');
-  const [sortBy, setSortBy] = useState<'name' | 'vintage' | 'price'>('name');
+  const [layoutMode, setLayoutMode] = useState<'grid' | 'shelf'>('grid');
+  const [sortBy, setSortBy] = useState<'name' | 'vintage' | 'price' | 'dateAdded'>('dateAdded');
   const [filterStatus, setFilterStatus] = useState<string>('All');
+  const [showAddModal, setShowAddModal] = useState(false);
 
   useEffect(() => {
     if (!auth.currentUser) return;
@@ -93,6 +96,10 @@ export default function CellarTab({ onSelectWine }: { onSelectWine: (wine: any) 
       const priceA = a.price ? parseInt(a.price.replace(/[^0-9]/g, ''), 10) : 0;
       const priceB = b.price ? parseInt(b.price.replace(/[^0-9]/g, ''), 10) : 0;
       return priceB - priceA; // Highest first
+    } else if (sortBy === 'dateAdded') {
+      const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return dateB - dateA; // Newest first
     }
     return 0;
   });
@@ -104,7 +111,10 @@ export default function CellarTab({ onSelectWine }: { onSelectWine: (wine: any) 
           <h2 className="text-3xl font-serif font-semibold mb-1">My Collection</h2>
           <p className="text-gray-400 text-sm">{wines.length} Bottles • R {totalValue.toLocaleString()}</p>
         </div>
-        <button className="w-10 h-10 rounded-full bg-glass border border-glass-border flex items-center justify-center hover:bg-white/10 transition-colors">
+        <button 
+          onClick={() => setShowAddModal(true)}
+          className="w-10 h-10 rounded-full bg-glass border border-glass-border flex items-center justify-center hover:bg-white/10 transition-colors"
+        >
           <Plus size={20} />
         </button>
       </div>
@@ -127,16 +137,33 @@ export default function CellarTab({ onSelectWine }: { onSelectWine: (wine: any) 
         </div>
         
         <div className="flex justify-between items-center">
-          <span className="text-sm text-gray-400">Sort by:</span>
-          <select 
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as any)}
-            className="bg-glass border border-glass-border rounded-lg py-1.5 px-3 text-sm text-ivory focus:outline-none focus:border-gold-500"
-          >
-            <option value="name">Name (A-Z)</option>
-            <option value="vintage">Vintage (Newest)</option>
-            <option value="price">Price (Highest)</option>
-          </select>
+          <div className="flex gap-2">
+            <button 
+              onClick={() => setLayoutMode('grid')}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${layoutMode === 'grid' ? 'bg-white/20 text-ivory' : 'text-gray-400 hover:text-ivory'}`}
+            >
+              Grid
+            </button>
+            <button 
+              onClick={() => setLayoutMode('shelf')}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${layoutMode === 'shelf' ? 'bg-white/20 text-ivory' : 'text-gray-400 hover:text-ivory'}`}
+            >
+              Shelf
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-400">Sort:</span>
+            <select 
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as any)}
+              className="bg-glass border border-glass-border rounded-lg py-1.5 px-3 text-sm text-ivory focus:outline-none focus:border-gold-500"
+            >
+              <option value="name">Name (A-Z)</option>
+              <option value="dateAdded">Date Added (Newest)</option>
+              <option value="vintage">Vintage (Newest)</option>
+              <option value="price">Price (Highest)</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -157,7 +184,7 @@ export default function CellarTab({ onSelectWine }: { onSelectWine: (wine: any) 
         )}
       </AnimatePresence>
 
-      {/* Grid */}
+      {/* Grid / Shelf */}
       {loading ? (
         <div className="text-center text-gold-500 py-10">Loading...</div>
       ) : displayData.length === 0 ? (
@@ -165,7 +192,7 @@ export default function CellarTab({ onSelectWine }: { onSelectWine: (wine: any) 
           <p>Your {viewMode} is empty.</p>
           <p className="text-sm mt-2">Scan or discover a bottle to add it.</p>
         </div>
-      ) : (
+      ) : layoutMode === 'grid' ? (
         <div className="grid grid-cols-2 gap-4">
           {displayData.map((wine) => (
             <CellarBottle 
@@ -179,7 +206,69 @@ export default function CellarTab({ onSelectWine }: { onSelectWine: (wine: any) 
             />
           ))}
         </div>
+      ) : (
+        <div className="space-y-12 mt-8">
+          {Array.from({ length: Math.ceil(displayData.length / 3) }).map((_, rowIndex) => (
+            <div key={rowIndex} className="flex justify-around items-end border-b-[12px] border-[#3E2723] pb-1 relative">
+              {/* Wood texture overlay */}
+              <div className="absolute bottom-[-12px] left-0 right-0 h-3 bg-gradient-to-b from-[#5D4037] to-[#3E2723] shadow-[0_10px_20px_rgba(0,0,0,0.5)]"></div>
+              
+              {displayData.slice(rowIndex * 3, rowIndex * 3 + 3).map((wine) => (
+                <motion.div 
+                  key={wine.id}
+                  whileHover={{ y: -10, scale: 1.05 }}
+                  onClick={() => onSelectWine(wine)}
+                  className="w-24 h-40 relative group cursor-pointer z-10"
+                >
+                  <img src={wine.image || "https://images.unsplash.com/photo-1584916201218-f4242ceb4809?q=80&w=400&auto=format&fit=crop"} alt={wine.name} className="w-full h-full object-cover rounded-t-xl drop-shadow-2xl" referrerPolicy="no-referrer" />
+                  
+                  {/* Tooltip */}
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max max-w-[150px] bg-black/90 backdrop-blur-md text-white text-xs p-2 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
+                    <p className="font-serif font-medium truncate">{wine.name}</p>
+                    <p className="text-gray-400">{wine.vintage}</p>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          ))}
+        </div>
       )}
+      {/* Add Wine Modal */}
+      <AnimatePresence>
+        {showAddModal && (
+          <AddWineModal 
+            onClose={() => setShowAddModal(false)} 
+            onSelectOption={(option) => {
+              setShowAddModal(false);
+              if (option === 'scan') {
+                onNavigate('scan');
+              } else if (option === 'search') {
+                onNavigate('discover');
+              } else {
+                alert("Manual entry form coming soon!");
+              }
+            }} 
+          />
+        )}
+      </AnimatePresence>
+      {/* Add Wine Modal */}
+      <AnimatePresence>
+        {showAddModal && (
+          <AddWineModal 
+            onClose={() => setShowAddModal(false)} 
+            onSelectOption={(option) => {
+              setShowAddModal(false);
+              if (option === 'scan') {
+                onNavigate('scan');
+              } else if (option === 'search') {
+                onNavigate('discover');
+              } else {
+                alert("Manual entry form coming soon!");
+              }
+            }} 
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, ScanLine, Wine, Info, Sparkles } from 'lucide-react';
+import { X, ScanLine, Wine, Info, Sparkles, Image as ImageIcon } from 'lucide-react';
 import { GoogleGenAI } from '@google/genai';
 
 export default function ARScanner({ onClose, onSave }: { onClose: () => void, onSave: (wine: any) => void }) {
@@ -11,6 +11,8 @@ export default function ARScanner({ onClose, onSave }: { onClose: () => void, on
   const [arData, setArData] = useState<any | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     startCamera();
     return () => stopCamera();
@@ -18,6 +20,9 @@ export default function ARScanner({ onClose, onSave }: { onClose: () => void, on
 
   const startCamera = async () => {
     try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error("Camera API is not supported in this browser.");
+      }
       const mediaStream = await navigator.mediaDevices.getUserMedia({ 
         video: { facingMode: 'environment' } 
       });
@@ -25,9 +30,15 @@ export default function ARScanner({ onClose, onSave }: { onClose: () => void, on
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Camera error:", err);
-      setError("Could not access camera. Please ensure permissions are granted.");
+      let errorMessage = "Could not access camera. Please ensure permissions are granted.";
+      if (err.name === 'NotAllowedError' || err.message === 'Permission denied') {
+        errorMessage = "Camera permission was denied. Please allow camera access in your browser settings, or use the image upload fallback below.";
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      setError(errorMessage);
     }
   };
 
@@ -63,6 +74,52 @@ export default function ARScanner({ onClose, onSave }: { onClose: () => void, on
             role: 'user',
             parts: [
               { inlineData: { data: base64Image, mimeType: 'image/jpeg' } },
+              { text: `Analyze this wine bottle. Extract the name, vintage, region, and grape. 
+                Also provide a short 'story' about the winery or region, and 2 food pairings.
+                Return JSON with: name, vintage, region, grape, story, pairings (array of strings), rating (number out of 100), awards (string, e.g., 'Platter 5 Star'), abv (string, e.g., '13.5%'), isOrganic (boolean), caloriesPerGlass (number).` }
+            ]
+          }
+        ],
+        config: {
+          responseMimeType: "application/json",
+        }
+      });
+
+      const data = JSON.parse(response.text || "{}");
+      setArData(data);
+    } catch (err) {
+      console.error("AR Scan Error:", err);
+      setError("Failed to analyze the bottle. Please try again.");
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsScanning(true);
+    setArData(null);
+    setError(null);
+
+    try {
+      const base64Image = await new Promise<string>((resolve) => {
+        const r = new FileReader();
+        r.onloadend = () => {
+          resolve((r.result as string).split(',')[1]);
+        };
+        r.readAsDataURL(file);
+      });
+
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              { inlineData: { data: base64Image, mimeType: file.type } },
               { text: `Analyze this wine bottle. Extract the name, vintage, region, and grape. 
                 Also provide a short 'story' about the winery or region, and 2 food pairings.
                 Return JSON with: name, vintage, region, grape, story, pairings (array of strings), rating (number out of 100), awards (string, e.g., 'Platter 5 Star'), abv (string, e.g., '13.5%'), isOrganic (boolean), caloriesPerGlass (number).` }
@@ -141,8 +198,13 @@ export default function ARScanner({ onClose, onSave }: { onClose: () => void, on
 
         {error && (
           <div className="bg-red-500/80 backdrop-blur-md text-white p-4 rounded-xl mb-4 pointer-events-auto">
-            {error}
-            <button onClick={() => setError(null)} className="ml-4 underline">Dismiss</button>
+            <p className="mb-2">{error}</p>
+            <div className="flex gap-4">
+              <button onClick={() => { setError(null); startCamera(); }} className="underline text-sm font-medium">Retry Camera</button>
+              <button onClick={() => fileInputRef.current?.click()} className="underline text-sm font-medium flex items-center gap-1">
+                <ImageIcon size={14} /> Upload Image
+              </button>
+            </div>
           </div>
         )}
 
@@ -224,13 +286,27 @@ export default function ARScanner({ onClose, onSave }: { onClose: () => void, on
 
         {/* Capture Button */}
         {!arData && !isScanning && (
-          <div className="flex justify-center mt-8 pointer-events-auto">
+          <div className="flex justify-center mt-8 pointer-events-auto items-center gap-6">
+            <input 
+              type="file" 
+              accept="image/*" 
+              className="hidden" 
+              ref={fileInputRef}
+              onChange={handleFileUpload}
+            />
+            <button 
+              onClick={() => fileInputRef.current?.click()}
+              className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white hover:bg-black/60 transition-colors"
+            >
+              <ImageIcon size={24} />
+            </button>
             <button 
               onClick={captureAndScan}
               className="w-20 h-20 rounded-full border-4 border-white flex items-center justify-center relative group"
             >
               <div className="w-16 h-16 bg-white rounded-full group-hover:scale-90 transition-transform"></div>
             </button>
+            <div className="w-12 h-12"></div> {/* Spacer to center capture button */}
           </div>
         )}
       </div>

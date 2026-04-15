@@ -67,6 +67,14 @@ service cloud.firestore {
              request.resource.data.date is string;
     }
 
+    function isValidTastingEvent() {
+      return isValidStringLength('title', 1, 100) &&
+             isValidStringLength('date', 1, 50) &&
+             (!('time' in request.resource.data) || isValidStringLength('time', 0, 50)) &&
+             (!('location' in request.resource.data) || isValidStringLength('location', 0, 200)) &&
+             (!('createdAt' in request.resource.data) || request.resource.data.createdAt is string);
+    }
+
     match /users/{userId} {
       allow read: if isOwner(userId);
       allow create: if isOwner(userId) && isValidUserProfile();
@@ -95,6 +103,13 @@ service cloud.firestore {
         allow read: if isOwner(userId);
         allow create: if isOwner(userId) && isValidConsumption();
         allow update: if isOwner(userId) && isValidConsumption();
+        allow delete: if isOwner(userId);
+      }
+
+      match /events/{eventId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidTastingEvent();
+        allow update: if isOwner(userId) && isValidTastingEvent();
         allow delete: if isOwner(userId);
       }
     }

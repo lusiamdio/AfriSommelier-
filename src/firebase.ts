@@ -9,10 +9,14 @@ export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 
 export const loginWithGoogle = async () => {
   const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({
+    prompt: 'select_account'
+  });
   try {
     await signInWithPopup(auth, provider);
   } catch (error) {
     console.error("Error signing in with Google", error);
+    throw error;
   }
 };
 

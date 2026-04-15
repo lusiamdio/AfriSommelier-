@@ -1,13 +1,19 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'motion/react';
-import { X, ChevronLeft, Heart, Share, Star, Leaf, Activity, Droplet } from 'lucide-react';
-import { collection, addDoc, deleteDoc, query, where, getDocs } from 'firebase/firestore';
+import { motion, AnimatePresence } from 'motion/react';
+import { X, ChevronLeft, Heart, Share, Star, Leaf, Activity, Droplet, Edit3, Check, ShoppingCart } from 'lucide-react';
+import { collection, addDoc, deleteDoc, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { handleFirestoreError, OperationType } from '../utils/firestoreErrorHandler';
+import LogGlassModal from './LogGlassModal';
 
 export default function WineDetail({ wine, onClose }: { wine: any, onClose: () => void }) {
   const [isWishlisted, setIsWishlisted] = useState(false);
   const [wishlistDocId, setWishlistDocId] = useState<string | null>(null);
+  const [personalNotes, setPersonalNotes] = useState(wine.personalNotes || '');
+  const [isEditingNotes, setIsEditingNotes] = useState(false);
+  const [isSavingNotes, setIsSavingNotes] = useState(false);
+  const [showLogGlass, setShowLogGlass] = useState(false);
+  const [isLiking, setIsLiking] = useState(false);
 
   useEffect(() => {
     const checkWishlist = async () => {
@@ -31,11 +37,15 @@ export default function WineDetail({ wine, onClose }: { wine: any, onClose: () =
 
   const toggleWishlist = async () => {
     if (!auth.currentUser) return;
+    setIsLiking(true);
+    
+    // Vibrate if supported
+    if (navigator.vibrate) {
+      navigator.vibrate(50);
+    }
+
     try {
       if (isWishlisted && wishlistDocId) {
-        // Remove from wishlist
-        // We need the doc reference, but we don't have it directly. 
-        // We can just query and delete.
         const q = query(
           collection(db, `users/${auth.currentUser.uid}/wishlist`),
           where('name', '==', wine.name)
@@ -47,16 +57,74 @@ export default function WineDetail({ wine, onClose }: { wine: any, onClose: () =
         setIsWishlisted(false);
         setWishlistDocId(null);
       } else {
-        // Add to wishlist
         const docRef = await addDoc(collection(db, `users/${auth.currentUser.uid}/wishlist`), {
           ...wine,
           addedAt: new Date().toISOString()
         });
         setIsWishlisted(true);
         setWishlistDocId(docRef.id);
+        
+        // Track event
+        console.log("Event logged:", {
+          event: "like_wine",
+          wine_id: wine.id || wine.name,
+          user_id: auth.currentUser.uid,
+          timestamp: new Date().toISOString()
+        });
       }
     } catch (error) {
       handleFirestoreError(error, isWishlisted ? OperationType.DELETE : OperationType.CREATE, `users/${auth.currentUser.uid}/wishlist`);
+    } finally {
+      setTimeout(() => setIsLiking(false), 300);
+    }
+  };
+
+  const handleShare = async () => {
+    const shareData = {
+      title: `Discover ${wine.name} on AfriSommelier`,
+      text: `Check out this amazing wine: ${wine.name} from ${wine.region || 'South Africa'}.`,
+      url: `${window.location.origin}/share?wine_id=${wine.id || encodeURIComponent(wine.name)}`
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(shareData.url);
+        alert("Link copied to clipboard!");
+      }
+    } catch (err) {
+      console.error("Error sharing:", err);
+    }
+  };
+
+  const handleBuy = () => {
+    // Track event
+    console.log("Event logged:", {
+      event: "buy_now_click",
+      wine_id: wine.id || wine.name,
+      user_id: auth?.currentUser?.uid || 'anonymous',
+      timestamp: new Date().toISOString()
+    });
+    
+    // In a real app, this would open a checkout modal or redirect to a partner
+    alert(`Redirecting to partner retailer to purchase ${wine.name}...`);
+  };
+
+  const saveNotes = async () => {
+    if (!auth.currentUser || !wine.id) return;
+    setIsSavingNotes(true);
+    try {
+      const wineRef = doc(db, `users/${auth.currentUser.uid}/cellar`, wine.id);
+      await updateDoc(wineRef, {
+        personalNotes: personalNotes
+      });
+      setIsEditingNotes(false);
+    } catch (error) {
+      console.error("Error saving notes:", error);
+      handleFirestoreError(error, OperationType.UPDATE, `users/${auth.currentUser.uid}/cellar/${wine.id}`);
+    } finally {
+      setIsSavingNotes(false);
     }
   };
 
@@ -73,13 +141,15 @@ export default function WineDetail({ wine, onClose }: { wine: any, onClose: () =
           <ChevronLeft size={24} />
         </button>
         <div className="flex gap-3">
-          <button 
+          <motion.button 
             onClick={toggleWishlist}
+            animate={isLiking ? { scale: [1, 1.2, 1] } : {}}
+            transition={{ duration: 0.3 }}
             className={`w-10 h-10 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center transition-colors ${isWishlisted ? 'text-pink-500 hover:bg-black/60' : 'text-white hover:bg-black/60'}`}
           >
             <Heart size={20} className={isWishlisted ? 'fill-pink-500' : ''} />
-          </button>
-          <button className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white hover:bg-black/60 transition-colors">
+          </motion.button>
+          <button onClick={handleShare} className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white hover:bg-black/60 transition-colors">
             <Share size={20} />
           </button>
         </div>
@@ -152,25 +222,58 @@ export default function WineDetail({ wine, onClose }: { wine: any, onClose: () =
             </div>
           </div>
           <button 
-            onClick={async () => {
-              if (!auth.currentUser) return;
-              try {
-                await addDoc(collection(db, `users/${auth.currentUser.uid}/consumption`), {
-                  wineName: wine.name,
-                  calories: wine.caloriesPerGlass || 120,
-                  date: new Date().toISOString(),
-                });
-                alert("Glass logged to your Mindful Tracker!");
-              } catch (error) {
-                console.error("Error logging glass:", error);
-              }
-            }}
+            onClick={() => setShowLogGlass(true)}
             className="w-full mt-4 py-3 rounded-xl border border-gold-500/30 text-gold-500 font-medium hover:bg-gold-500/10 transition-colors flex items-center justify-center gap-2"
           >
             <Droplet size={16} />
             Log a Glass
           </button>
         </div>
+
+        {/* Personal Notes */}
+        {wine.id && (
+          <div className="mb-10">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-semibold">My Tasting Notes</h3>
+              {!isEditingNotes ? (
+                <button 
+                  onClick={() => setIsEditingNotes(true)}
+                  className="text-gold-500 hover:text-gold-400 flex items-center gap-1 text-sm font-medium transition-colors"
+                >
+                  <Edit3 size={16} /> Edit
+                </button>
+              ) : (
+                <button 
+                  onClick={saveNotes}
+                  disabled={isSavingNotes}
+                  className="text-green-400 hover:text-green-300 flex items-center gap-1 text-sm font-medium transition-colors disabled:opacity-50"
+                >
+                  <Check size={16} /> {isSavingNotes ? 'Saving...' : 'Save'}
+                </button>
+              )}
+            </div>
+            
+            {isEditingNotes ? (
+              <textarea
+                value={personalNotes}
+                onChange={(e) => setPersonalNotes(e.target.value)}
+                placeholder="Add your personal tasting notes, memories, or pairing ideas here..."
+                className="w-full h-32 bg-glass border border-gold-500/50 rounded-xl p-4 text-ivory placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-gold-500 transition-all resize-none"
+              />
+            ) : (
+              <div 
+                className="w-full min-h-[5rem] bg-glass border border-glass-border rounded-xl p-4 text-gray-300 cursor-pointer hover:bg-white/5 transition-colors"
+                onClick={() => setIsEditingNotes(true)}
+              >
+                {personalNotes ? (
+                  <p className="whitespace-pre-wrap">{personalNotes}</p>
+                ) : (
+                  <p className="text-gray-500 italic">Tap to add your personal tasting notes...</p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Taste Graph */}
         <div className="mb-10">
@@ -201,12 +304,22 @@ export default function WineDetail({ wine, onClose }: { wine: any, onClose: () =
               <p className="text-sm text-gray-400">Best Price</p>
               <p className="text-2xl font-serif font-semibold text-gold-500">{wine.price || 'R 950'}</p>
             </div>
-            <button className="flex-2 bg-gold-500 text-wine-900 font-medium py-4 px-8 rounded-2xl hover:scale-[0.98] transition-transform">
+            <button 
+              onClick={handleBuy}
+              className="flex-2 bg-gold-500 text-wine-900 font-medium py-4 px-8 rounded-2xl hover:scale-[0.98] transition-transform flex items-center gap-2"
+            >
+              <ShoppingCart size={18} />
               Buy Now
             </button>
           </div>
         </div>
       </div>
+
+      <AnimatePresence>
+        {showLogGlass && (
+          <LogGlassModal wine={wine} onClose={() => setShowLogGlass(false)} />
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }

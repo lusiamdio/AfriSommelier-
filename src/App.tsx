@@ -15,11 +15,15 @@ import SommelierChat from './components/SommelierChat';
 import WineDetail from './components/WineDetail';
 import LoginScreen from './components/LoginScreen';
 
+import ProfileTab from './components/ProfileTab';
+
 export default function App() {
   const [activeTab, setActiveTab] = useState('home');
   const [selectedWine, setSelectedWine] = useState<any>(null);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [initialDiscoverState, setInitialDiscoverState] = useState<any>(null);
+  const [initialChatState, setInitialChatState] = useState<{ role: 'user' | 'model', text: string } | null>(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -27,6 +31,46 @@ export default function App() {
       setLoading(false);
     });
     return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    // Handle Smart Redirect Links
+    const path = window.location.pathname;
+    const params = new URLSearchParams(window.location.search);
+
+    if (path.startsWith('/pair')) {
+      setActiveTab('ai');
+      const meal = params.get('meal');
+      const mood = params.get('mood');
+      if (meal) {
+        setInitialChatState({ role: 'user', text: `I am having ${meal} for dinner. What South African wine would you pair with this?` });
+      } else if (mood) {
+        setInitialChatState({ role: 'user', text: `I am in a ${mood} mood. Recommend a South African wine.` });
+      } else {
+        setInitialChatState({ role: 'model', text: `What are you eating tonight? Let me help you pair a wine.` });
+      }
+    } else if (path.startsWith('/explore')) {
+      setActiveTab('discover');
+    } else if (path.startsWith('/trending')) {
+      setActiveTab('discover');
+      setInitialDiscoverState({ query: 'Trending South African wines' });
+    } else if (path.startsWith('/grapes/')) {
+      setActiveTab('discover');
+      const grape = path.split('/')[2];
+      const grapeMap: Record<string, string> = {
+        'pinotage': 'Pinotage',
+        'chenin-blanc': 'Chenin Blanc',
+        'shiraz': 'Shiraz / Syrah',
+        'cabernet-sauvignon': 'Cabernet Sauvignon',
+        'merlot': 'Merlot',
+        'chardonnay': 'Chardonnay'
+      };
+      setInitialDiscoverState({ filterGrape: grapeMap[grape] || 'All' });
+    } else if (path.startsWith('/sommelier')) {
+      setActiveTab('ai');
+      const voice = params.get('voice');
+      setInitialChatState({ role: 'model', text: "Tell me your mood, budget, and meal, and I'll find the perfect wine.", autoVoice: voice === 'true' });
+    }
   }, []);
 
   if (loading) {
@@ -40,11 +84,20 @@ export default function App() {
   return (
     <div className="min-h-screen bg-wine-900 text-ivory font-sans selection:bg-gold-500/30">
       <main className="h-screen overflow-y-auto hide-scrollbar relative">
-        {activeTab === 'home' && <HomeTab onSelectWine={setSelectedWine} />}
-        {activeTab === 'discover' && <DiscoverTab onSelectWine={setSelectedWine} />}
+        {activeTab === 'home' && <HomeTab onSelectWine={setSelectedWine} onNavigate={(tab, state) => {
+          setActiveTab(tab);
+          if (tab === 'discover' && state) setInitialDiscoverState(state);
+          if (tab === 'ai' && state) setInitialChatState(state);
+        }} />}
+        {activeTab === 'discover' && <DiscoverTab onSelectWine={setSelectedWine} initialState={initialDiscoverState} />}
         {activeTab === 'scan' && <ScanTab onSelectWine={setSelectedWine} />}
-        {activeTab === 'ai' && <SommelierChat onClose={() => setActiveTab('home')} />}
-        {activeTab === 'cellar' && <CellarTab onSelectWine={setSelectedWine} />}
+        {activeTab === 'ai' && <SommelierChat onClose={() => setActiveTab('home')} initialMessage={initialChatState} />}
+        {activeTab === 'cellar' && <CellarTab onSelectWine={setSelectedWine} onNavigate={(tab, state) => {
+          setActiveTab(tab);
+          if (tab === 'discover' && state) setInitialDiscoverState(state);
+          if (tab === 'ai' && state) setInitialChatState(state);
+        }} />}
+        {activeTab === 'profile' && <ProfileTab onNavigate={(tab) => setActiveTab(tab)} />}
       </main>
 
       {/* Floating Glass Navigation Bar */}
