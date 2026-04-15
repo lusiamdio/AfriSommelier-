@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Send, Mic, Sparkles, ChevronRight } from 'lucide-react';
-import { GoogleGenAI, Type, Schema } from '@google/genai';
+import { X, Send, Mic, Sparkles, ChevronRight, Brain, Volume2, Loader2 } from 'lucide-react';
+import { GoogleGenAI, Type, Schema, ThinkingLevel, Modality } from '@google/genai';
 import WinePourLoader from './WinePourLoader';
 import { WINE_FARMS_KNOWLEDGE } from '../data/wineKnowledge';
 import { WINE_COURSE_KNOWLEDGE } from '../data/educationalCourseKnowledge';
@@ -17,6 +17,8 @@ export default function SommelierChat({ onClose, initialMessage }: { onClose: ()
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const [isDeepAnalysis, setIsDeepAnalysis] = useState(false);
+  const [isPlayingTTS, setIsPlayingTTS] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
 
@@ -132,8 +134,9 @@ export default function SommelierChat({ onClose, initialMessage }: { onClose: ()
       };
 
       const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: isDeepAnalysis ? "gemini-3.1-pro-preview" : "gemini-3-flash-preview",
         contents: contents as any,
+        tools: [{ googleSearch: {} }],
         config: {
           systemInstruction: `You are a Master Sommelier specializing in South African wines. Keep your answers concise, elegant, and helpful.
           
@@ -146,7 +149,8 @@ export default function SommelierChat({ onClose, initialMessage }: { onClose: ()
           Here is the Wine Wise South African Wine Knowledge:
           ${WINE_WISE_KNOWLEDGE}`,
           responseMimeType: "application/json",
-          responseSchema: responseSchema
+          responseSchema: responseSchema,
+          ...(isDeepAnalysis ? { thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH } } : {})
         }
       });
 
@@ -165,6 +169,56 @@ export default function SommelierChat({ onClose, initialMessage }: { onClose: ()
     }
   };
 
+  const handleTTS = async (text: string) => {
+    if (isPlayingTTS) return;
+    setIsPlayingTTS(true);
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash-preview-tts",
+        contents: [{ parts: [{ text }] }],
+        config: {
+          responseModalities: [Modality.AUDIO],
+          speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: { voiceName: 'Puck' },
+            },
+          },
+        },
+      });
+
+      const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+      if (base64Audio) {
+        const binaryString = atob(base64Audio);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        
+        const int16Array = new Int16Array(bytes.buffer);
+        const float32Array = new Float32Array(int16Array.length);
+        for (let i = 0; i < int16Array.length; i++) {
+          float32Array[i] = int16Array[i] / 32768.0;
+        }
+
+        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const audioBuffer = audioContext.createBuffer(1, float32Array.length, 24000);
+        audioBuffer.getChannelData(0).set(float32Array);
+
+        const source = audioContext.createBufferSource();
+        source.buffer = audioBuffer;
+        source.connect(audioContext.destination);
+        source.onended = () => setIsPlayingTTS(false);
+        source.start(0);
+      } else {
+        setIsPlayingTTS(false);
+      }
+    } catch (error) {
+      console.error("TTS error:", error);
+      setIsPlayingTTS(false);
+    }
+  };
+
   return (
     <motion.div 
       initial={{ opacity: 0, y: 50 }}
@@ -179,7 +233,18 @@ export default function SommelierChat({ onClose, initialMessage }: { onClose: ()
             <div className="absolute inset-0 bg-gold-500/20 blur-md animate-pulse"></div>
             <Sparkles size={18} className="text-gold-500 relative z-10" />
           </div>
-          <h2 className="font-serif text-xl font-medium text-ivory">Sommelier AI</h2>
+          <div>
+            <h2 className="font-serif text-xl font-medium text-ivory">Sommelier AI</h2>
+            <div className="flex items-center gap-2 mt-0.5">
+              <button 
+                onClick={() => setIsDeepAnalysis(!isDeepAnalysis)}
+                className={`flex items-center gap-1 text-[10px] uppercase tracking-wider font-medium px-2 py-0.5 rounded-full border transition-colors ${isDeepAnalysis ? 'bg-purple-500/20 border-purple-500/50 text-purple-300' : 'bg-glass border-glass-border text-gray-400'}`}
+              >
+                <Brain size={10} />
+                Deep Analysis {isDeepAnalysis ? 'ON' : 'OFF'}
+              </button>
+            </div>
+          </div>
         </div>
         <button onClick={onClose} className="p-2 text-gray-400 hover:text-ivory transition-colors">
           <X size={24} />
@@ -196,12 +261,20 @@ export default function SommelierChat({ onClose, initialMessage }: { onClose: ()
               animate={{ opacity: 1, y: 0 }}
               className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}
             >
-              <div className={`max-w-[85%] p-4 rounded-2xl mb-2 ${
+              <div className={`max-w-[85%] p-4 rounded-2xl mb-2 relative group ${
                 msg.role === 'user' 
                   ? 'bg-wine-800 text-ivory rounded-tr-sm' 
                   : 'glass-panel text-ivory rounded-tl-sm'
               }`}>
                 <p className="text-sm leading-relaxed">{msg.text}</p>
+                {msg.role === 'model' && (
+                  <button 
+                    onClick={() => handleTTS(msg.text)}
+                    className="absolute -right-10 top-2 p-2 text-gray-400 hover:text-gold-500 transition-colors opacity-0 group-hover:opacity-100"
+                  >
+                    {isPlayingTTS ? <Loader2 size={16} className="animate-spin" /> : <Volume2 size={16} />}
+                  </button>
+                )}
               </div>
               
               {/* Render Structured Wine Cards */}

@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, ChevronLeft, Heart, Share, Star, Leaf, Activity, Droplet, Edit3, Check, ShoppingCart } from 'lucide-react';
+import { X, ChevronLeft, Heart, Share, Star, Leaf, Activity, Droplet, Edit3, Check, ShoppingCart, Music, Image as ImageIcon, Loader2 } from 'lucide-react';
 import { collection, addDoc, deleteDoc, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { handleFirestoreError, OperationType } from '../utils/firestoreErrorHandler';
+import { GoogleGenAI, Modality } from '@google/genai';
 import LogGlassModal from './LogGlassModal';
 
 export default function WineDetail({ wine, onClose }: { wine: any, onClose: () => void }) {
@@ -14,6 +15,10 @@ export default function WineDetail({ wine, onClose }: { wine: any, onClose: () =
   const [isSavingNotes, setIsSavingNotes] = useState(false);
   const [showLogGlass, setShowLogGlass] = useState(false);
   const [isLiking, setIsLiking] = useState(false);
+  const [isGeneratingMusic, setIsGeneratingMusic] = useState(false);
+  const [musicUrl, setMusicUrl] = useState<string | null>(null);
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null);
 
   useEffect(() => {
     const checkWishlist = async () => {
@@ -128,6 +133,101 @@ export default function WineDetail({ wine, onClose }: { wine: any, onClose: () =
     }
   };
 
+  const generateMusic = async () => {
+    try {
+      if (!(await (window as any).aistudio.hasSelectedApiKey())) {
+        await (window as any).aistudio.openSelectKey();
+      }
+    } catch (e) {
+      console.error("API key selection failed", e);
+      return;
+    }
+
+    setIsGeneratingMusic(true);
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const response = await ai.models.generateContentStream({
+        model: "lyria-3-clip-preview",
+        contents: `Generate a 30-second track inspired by this wine: ${wine.name}, a ${wine.grape} from ${wine.region}. The vibe should be ${wine.notes || 'elegant and complex'}.`,
+      });
+
+      let audioBase64 = "";
+      let mimeType = "audio/wav";
+
+      for await (const chunk of response) {
+        const parts = chunk.candidates?.[0]?.content?.parts;
+        if (!parts) continue;
+        for (const part of parts) {
+          if (part.inlineData?.data) {
+            if (!audioBase64 && part.inlineData.mimeType) {
+              mimeType = part.inlineData.mimeType;
+            }
+            audioBase64 += part.inlineData.data;
+          }
+        }
+      }
+
+      if (audioBase64) {
+        const binary = atob(audioBase64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) {
+          bytes[i] = binary.charCodeAt(i);
+        }
+        const blob = new Blob([bytes], { type: mimeType });
+        setMusicUrl(URL.createObjectURL(blob));
+      }
+    } catch (error) {
+      console.error("Error generating music:", error);
+      alert("Failed to generate music.");
+    } finally {
+      setIsGeneratingMusic(false);
+    }
+  };
+
+  const generateImage = async () => {
+    try {
+      if (!(await (window as any).aistudio.hasSelectedApiKey())) {
+        await (window as any).aistudio.openSelectKey();
+      }
+    } catch (e) {
+      console.error("API key selection failed", e);
+      return;
+    }
+
+    setIsGeneratingImage(true);
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.1-flash-image-preview',
+        contents: {
+          parts: [
+            {
+              text: `A beautiful, artistic visualization of the flavors of this wine: ${wine.name}. It is a ${wine.grape} from ${wine.region}. Tasting notes: ${wine.notes || 'elegant and complex'}. Make it look like a high-end editorial photo or abstract art.`,
+            },
+          ],
+        },
+        config: {
+          imageConfig: {
+            aspectRatio: "1:1",
+            imageSize: "1K"
+          }
+        },
+      });
+      
+      for (const part of response.candidates?.[0]?.content?.parts || []) {
+        if (part.inlineData) {
+          const base64EncodeString = part.inlineData.data;
+          setGeneratedImageUrl(`data:image/png;base64,${base64EncodeString}`);
+        }
+      }
+    } catch (error) {
+      console.error("Error generating image:", error);
+      alert("Failed to generate image.");
+    } finally {
+      setIsGeneratingImage(false);
+    }
+  };
+
   return (
     <motion.div 
       initial={{ opacity: 0, y: 100 }}
@@ -194,6 +294,44 @@ export default function WineDetail({ wine, onClose }: { wine: any, onClose: () =
           <p className="text-lg font-serif leading-relaxed">
             "{wine.notes || wine.recommendationReason || "Bold, smoky, with hints of blackberry and cedar. It perfectly matches your preference for full-bodied reds with structured tannins."}"
           </p>
+        </div>
+
+        {/* AI Features */}
+        <div className="mb-10">
+          <h3 className="text-xl font-semibold mb-6 flex items-center gap-2">
+            <Star size={20} className="text-gold-500" />
+            AI Experiences
+          </h3>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="glass-panel p-4 rounded-2xl flex flex-col items-center justify-center text-center gap-3">
+              {musicUrl ? (
+                <audio controls src={musicUrl} className="w-full h-10" />
+              ) : (
+                <button 
+                  onClick={generateMusic}
+                  disabled={isGeneratingMusic}
+                  className="w-full h-full flex flex-col items-center justify-center gap-2 text-gold-500 hover:text-gold-400 transition-colors disabled:opacity-50"
+                >
+                  {isGeneratingMusic ? <Loader2 size={24} className="animate-spin" /> : <Music size={24} />}
+                  <span className="text-sm font-medium">{isGeneratingMusic ? 'Composing...' : 'Generate Vibe Music'}</span>
+                </button>
+              )}
+            </div>
+            <div className="glass-panel p-4 rounded-2xl flex flex-col items-center justify-center text-center gap-3">
+              {generatedImageUrl ? (
+                <img src={generatedImageUrl} alt="Visualized Wine" className="w-full h-24 object-cover rounded-lg" />
+              ) : (
+                <button 
+                  onClick={generateImage}
+                  disabled={isGeneratingImage}
+                  className="w-full h-full flex flex-col items-center justify-center gap-2 text-gold-500 hover:text-gold-400 transition-colors disabled:opacity-50"
+                >
+                  {isGeneratingImage ? <Loader2 size={24} className="animate-spin" /> : <ImageIcon size={24} />}
+                  <span className="text-sm font-medium">{isGeneratingImage ? 'Visualizing...' : 'Visualize Flavor'}</span>
+                </button>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Wellness & Health */}
