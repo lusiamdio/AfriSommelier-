@@ -83,7 +83,7 @@ export default function TasteDNA() {
 
   const handleSliderChange = (index: number, value: number) => {
     const newData = [...editData];
-    newData[index].You = value;
+    newData[index] = { ...newData[index], You: value };
     setEditData(newData);
   };
 

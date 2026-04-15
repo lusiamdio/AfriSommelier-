@@ -8,6 +8,14 @@ import { signOut } from 'firebase/auth';
 export default function ProfileTab({ onNavigate }: { onNavigate: (tab: string) => void }) {
   const [stats, setStats] = useState({ glasses: 0, streak: 3, uniqueWines: 0 });
   const [loading, setLoading] = useState(true);
+  const [tasteDNA, setTasteDNA] = useState({
+    Boldness: 85,
+    Tannin: 70,
+    Sweetness: 30,
+    Acidity: 65,
+    Fruitiness: 80,
+    Earthiness: 40
+  });
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -98,13 +106,17 @@ export default function ProfileTab({ onNavigate }: { onNavigate: (tab: string) =
 
         {/* TasteDNA */}
         <div className="mb-10">
-          <h3 className="text-xl font-semibold mb-6">Your TasteDNA</h3>
+          <div className="mb-6">
+            <h3 className="text-xl font-semibold">Taste DNA</h3>
+            <p className="text-gray-400 text-sm">Your evolving flavor profile</p>
+          </div>
           <div className="glass-panel p-6 rounded-3xl space-y-4">
-            <TasteBar label="Boldness" value={85} color="bg-red-500" />
-            <TasteBar label="Tannin" value={70} color="bg-orange-500" />
-            <TasteBar label="Sweetness" value={30} color="bg-pink-500" />
-            <TasteBar label="Acidity" value={65} color="bg-green-500" />
-            <TasteBar label="Fruit" value={80} color="bg-purple-500" />
+            <TasteBar label="Boldness" value={tasteDNA.Boldness} color="bg-red-500" onChange={(val) => setTasteDNA(prev => ({ ...prev, Boldness: val }))} />
+            <TasteBar label="Tannin" value={tasteDNA.Tannin} color="bg-orange-500" onChange={(val) => setTasteDNA(prev => ({ ...prev, Tannin: val }))} />
+            <TasteBar label="Sweetness" value={tasteDNA.Sweetness} color="bg-pink-500" onChange={(val) => setTasteDNA(prev => ({ ...prev, Sweetness: val }))} />
+            <TasteBar label="Acidity" value={tasteDNA.Acidity} color="bg-green-500" onChange={(val) => setTasteDNA(prev => ({ ...prev, Acidity: val }))} />
+            <TasteBar label="Fruitiness" value={tasteDNA.Fruitiness} color="bg-purple-500" onChange={(val) => setTasteDNA(prev => ({ ...prev, Fruitiness: val }))} />
+            <TasteBar label="Earthiness" value={tasteDNA.Earthiness} color="bg-amber-700" onChange={(val) => setTasteDNA(prev => ({ ...prev, Earthiness: val }))} />
           </div>
         </div>
 
@@ -149,19 +161,26 @@ export default function ProfileTab({ onNavigate }: { onNavigate: (tab: string) =
   );
 }
 
-function TasteBar({ label, value, color }: { label: string, value: number, color: string }) {
+function TasteBar({ label, value, color, onChange }: { label: string, value: number, color: string, onChange: (val: number) => void }) {
   return (
     <div>
       <div className="flex justify-between text-sm mb-2">
         <span className="text-gray-300">{label}</span>
         <span className="text-gray-500">{value}%</span>
       </div>
-      <div className="h-2 bg-black/40 rounded-full overflow-hidden">
+      <div className="relative h-4 bg-black/40 rounded-full overflow-hidden group">
         <motion.div 
-          initial={{ width: 0 }}
           animate={{ width: `${value}%` }}
-          transition={{ duration: 1, delay: 0.2 }}
-          className={`h-full ${color} rounded-full`} 
+          transition={{ type: 'spring', bounce: 0, duration: 0.2 }}
+          className={`absolute top-0 left-0 h-full ${color} rounded-full pointer-events-none`} 
+        />
+        <input 
+          type="range" 
+          min="0" 
+          max="100" 
+          value={value} 
+          onChange={(e) => onChange(Number(e.target.value))}
+          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
         />
       </div>
     </div>

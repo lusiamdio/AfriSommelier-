@@ -369,7 +369,7 @@ export default function DiscoverTab({ onSelectWine, initialState }: { onSelectWi
           <RegionCard name="Stellenbosch" image="https://images.unsplash.com/photo-1560493676-04071c5f467b?q=80&w=600&auto=format&fit=crop" onClick={() => setSelectedRegion("Stellenbosch")} />
           <RegionCard name="Franschhoek" image="https://images.unsplash.com/photo-1595854341625-f33ee10dbf94?q=80&w=600&auto=format&fit=crop" onClick={() => setSelectedRegion("Franschhoek")} />
           <RegionCard name="Swartland" image="https://images.unsplash.com/photo-1504279577054-acfeccf8fc52?q=80&w=600&auto=format&fit=crop" onClick={() => setSelectedRegion("Swartland")} />
-          <RegionCard name="Hemel-en-Aarde" image="https://images.unsplash.com/photo-1502672260266-1c1c24240f38?q=80&w=600&auto=format&fit=crop" onClick={() => setSelectedRegion("Hemel-en-Aarde")} />
+          <RegionCard name="Hemel-en-Aarde" image="https://images.unsplash.com/photo-1516594915697-87eb3b1c14ea?q=80&w=600&auto=format&fit=crop" onClick={() => setSelectedRegion("Hemel-en-Aarde")} />
         </div>
       </div>
 
@@ -377,12 +377,12 @@ export default function DiscoverTab({ onSelectWine, initialState }: { onSelectWi
       <div className="mb-12">
         <h3 className="text-xl font-semibold px-6 mb-4">Grapes</h3>
         <div className="flex flex-wrap gap-3 px-6">
-          <GrapeChip name="Pinotage 🇿🇦" />
-          <GrapeChip name="Chenin Blanc" />
-          <GrapeChip name="Shiraz" />
-          <GrapeChip name="Cabernet Sauvignon" />
-          <GrapeChip name="Merlot" />
-          <GrapeChip name="Chardonnay" />
+          <GrapeChip name="Pinotage 🇿🇦" onClick={() => { setFilterGrape('Pinotage'); handleSearch(undefined, { grape: 'Pinotage' }); }} />
+          <GrapeChip name="Chenin Blanc" onClick={() => { setFilterGrape('Chenin Blanc'); handleSearch(undefined, { grape: 'Chenin Blanc' }); }} />
+          <GrapeChip name="Shiraz" onClick={() => { setFilterGrape('Shiraz'); handleSearch(undefined, { grape: 'Shiraz' }); }} />
+          <GrapeChip name="Cabernet Sauvignon" onClick={() => { setFilterGrape('Cabernet Sauvignon'); handleSearch(undefined, { grape: 'Cabernet Sauvignon' }); }} />
+          <GrapeChip name="Merlot" onClick={() => { setFilterGrape('Merlot'); handleSearch(undefined, { grape: 'Merlot' }); }} />
+          <GrapeChip name="Chardonnay" onClick={() => { setFilterGrape('Chardonnay'); handleSearch(undefined, { grape: 'Chardonnay' }); }} />
         </div>
       </div>
 
@@ -421,9 +421,9 @@ function RegionCard({ name, image, onClick }: any) {
   );
 }
 
-function GrapeChip({ name }: { name: string }) {
+function GrapeChip({ name, onClick }: { name: string, onClick?: () => void }) {
   return (
-    <button className="px-5 py-2.5 rounded-full border border-glass-border bg-glass hover:bg-white/10 transition-colors text-sm font-medium">
+    <button onClick={onClick} className="px-5 py-2.5 rounded-full border border-glass-border bg-glass hover:bg-white/10 transition-colors text-sm font-medium">
       {name}
     </button>
   );

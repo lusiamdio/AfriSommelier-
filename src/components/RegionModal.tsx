@@ -29,7 +29,7 @@ const regionData: Record<string, any> = {
   },
   "Hemel-en-Aarde": {
     name: "Hemel-en-Aarde",
-    image: "https://images.unsplash.com/photo-1502672260266-1c1c24240f38?q=80&w=800&auto=format&fit=crop",
+    image: "https://images.unsplash.com/photo-1516594915697-87eb3b1c14ea?q=80&w=800&auto=format&fit=crop",
     description: "Meaning 'Heaven and Earth', this cool-climate maritime region is renowned for producing South Africa's finest Pinot Noir and Chardonnay.",
     grapes: ["Pinot Noir", "Chardonnay", "Sauvignon Blanc"],
     wineries: ["Hamilton Russell", "Bouchard Finlayson", "Newton Johnson", "Creation"],
