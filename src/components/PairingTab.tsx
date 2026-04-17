@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { motion } from 'motion/react';
 import { Camera, Search, Sparkles, ChefHat, Loader2 } from 'lucide-react';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, Type } from '@google/genai';
 
 export default function PairingTab() {
   const [foodInput, setFoodInput] = useState('');
@@ -19,23 +19,33 @@ export default function PairingTab() {
         Act as an expert AI Sommelier specializing in African wines.
         I am eating: ${foodInput}.
         Suggest the perfect South African wine pairing.
-        Respond ONLY with a JSON object in this exact format:
-        {
-          "wine": "Name of the wine varietal or blend",
-          "region": "Wine region in South Africa",
-          "reason": "A 2-3 sentence explanation of why this pairs well with the food.",
-          "recommendations": [
-            { "name": "Specific Bottle Recommendation 1", "price": "Estimated Price in ZAR" },
-            { "name": "Specific Bottle Recommendation 2", "price": "Estimated Price in ZAR" }
-          ]
-        }
       `;
 
       const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-2.5-flash",
         contents: prompt,
         config: {
-          responseMimeType: "application/json"
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              wine: { type: Type.STRING, description: "Name of the wine varietal or blend" },
+              region: { type: Type.STRING, description: "Wine region in South Africa" },
+              reason: { type: Type.STRING, description: "A 2-3 sentence explanation of why this pairs well with the food." },
+              recommendations: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    name: { type: Type.STRING, description: "Specific Bottle Recommendation" },
+                    price: { type: Type.STRING, description: "Estimated Price in ZAR" }
+                  },
+                  required: ["name", "price"]
+                }
+              }
+            },
+            required: ["wine", "region", "reason", "recommendations"]
+          }
         }
       });
 

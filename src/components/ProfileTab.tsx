@@ -35,7 +35,9 @@ export default function ProfileTab({ onNavigate }: { onNavigate: (tab: string) =
           uniqueWines: unique.size
         });
       } catch (error) {
-        console.error("Error fetching stats:", error);
+        import('../utils/firestoreErrorHandler').then(({ handleFirestoreError, OperationType }) => {
+          handleFirestoreError(error, OperationType.GET, `users/${auth.currentUser?.uid}/consumption`);
+        });
       } finally {
         setLoading(false);
       }
@@ -59,7 +61,8 @@ export default function ProfileTab({ onNavigate }: { onNavigate: (tab: string) =
       exit={{ opacity: 0, x: 50 }}
       className="min-h-screen bg-wine-900 pb-32"
     >
-      {/* Header */}
+      <div className="w-full max-w-3xl mx-auto">
+        {/* Header */}
       <div className="flex justify-between items-center p-6 pt-12">
         <button onClick={() => onNavigate('home')} className="w-10 h-10 rounded-full bg-glass border border-glass-border flex items-center justify-center text-gray-400 hover:text-ivory transition-colors">
           <ChevronLeft size={24} />
@@ -156,6 +159,7 @@ export default function ProfileTab({ onNavigate }: { onNavigate: (tab: string) =
           <LogOut size={18} />
           Sign Out
         </button>
+      </div>
       </div>
     </motion.div>
   );

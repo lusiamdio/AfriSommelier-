@@ -39,7 +39,7 @@ export default function GiftEngineModal({ onClose, onSelectWine }: { onClose: ()
       };
 
       const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-2.5-flash",
         contents: [
           { role: 'user', parts: [{ text: `Suggest the perfect South African wine gift. Recipient: ${recipient}. Occasion: ${occasion}. Budget: ${budget}.` }] }
         ],

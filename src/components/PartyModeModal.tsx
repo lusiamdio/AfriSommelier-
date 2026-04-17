@@ -37,7 +37,7 @@ export default function PartyModeModal({ onClose, onSelectWine }: { onClose: () 
       };
 
       const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-2.5-flash",
         contents: [
           { role: 'user', parts: [{ text: `Rank these wines for my group. Group: ${groupDescription}. Wines available: ${winesAvailable}.` }] }
         ],

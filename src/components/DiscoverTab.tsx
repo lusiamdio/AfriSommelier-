@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Search, Gift, Users, Loader2, Trophy, Filter } from 'lucide-react';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, Type } from '@google/genai';
 import TasteDNA from './TasteDNA';
 import GiftEngineModal from './GiftEngineModal';
 import PartyModeModal from './PartyModeModal';
@@ -56,7 +56,7 @@ export default function DiscoverTab({ onSelectWine, initialState }: { onSelectWi
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-2.5-flash",
         contents: [
           {
             role: "user",
@@ -72,34 +72,42 @@ export default function DiscoverTab({ onSelectWine, initialState }: { onSelectWi
                   ${WINE_COURSE_KNOWLEDGE}
                   
                   Here is the Wine Wise South African Wine Knowledge:
-                  ${WINE_WISE_KNOWLEDGE}
-                  
-                  Return strictly as a JSON object with no markdown formatting or backticks:
-                  {
-                    "wines": [
-                      {
-                        "name": "Full name of the wine",
-                        "vintage": "Year (or 'NV')",
-                        "region": "Region/Country",
-                        "grape": "Primary grape varietal",
-                        "notes": "A short, elegant 2-sentence sommelier description of why it matches the query",
-                        "price": "Price listed or estimated in ZAR",
-                        "rating": 90,
-                        "match": "A percentage string like '95%'"
-                      }
-                    ]
-                  }`
+                  ${WINE_WISE_KNOWLEDGE}`
                 }
               ]
             }
-          ]
-        });
+          ],
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              wines: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    name: { type: Type.STRING, description: "Full name of the wine" },
+                    vintage: { type: Type.STRING, description: "Year (or 'NV')" },
+                    region: { type: Type.STRING, description: "Region/Country" },
+                    grape: { type: Type.STRING, description: "Primary grape varietal" },
+                    notes: { type: Type.STRING, description: "A short, elegant 2-sentence sommelier description" },
+                    price: { type: Type.STRING, description: "Price listed or estimated in ZAR" },
+                    rating: { type: Type.INTEGER, description: "Rating score out of 100" },
+                    match: { type: Type.STRING, description: "A percentage string like '95%'" }
+                  },
+                  required: ["name", "vintage", "region", "grape", "notes", "price", "rating", "match"]
+                }
+              }
+            },
+            required: ["wines"]
+          }
+        }
+      });
 
-        let jsonStr = response.text || "{}";
-        jsonStr = jsonStr.replace(/```json/g, '').replace(/```/g, '').trim();
-        const data = JSON.parse(jsonStr);
-        
-        setSearchResults(data.wines || []);
+      const data = JSON.parse(response.text || "{}");
+      
+      setSearchResults(data.wines || []);
       } catch (error) {
         console.error("Search error:", error);
         alert("Failed to perform search. Please try again.");
@@ -109,7 +117,7 @@ export default function DiscoverTab({ onSelectWine, initialState }: { onSelectWi
   };
 
   return (
-    <div className="pb-32 pt-12">
+    <div className="pb-32 pt-12 w-full max-w-7xl mx-auto">
       {/* Search Bar */}
       <div className="px-6 mb-4">
         <div className="relative flex gap-2">
@@ -271,7 +279,7 @@ export default function DiscoverTab({ onSelectWine, initialState }: { onSelectWi
               <h3 className="text-xl font-semibold">AI Recommendations</h3>
               <button onClick={() => setSearchResults(null)} className="text-sm text-gray-400 hover:text-ivory">Clear</button>
             </div>
-            <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {searchResults.map((wine, idx) => (
                 <div key={idx} className="glass-panel p-4 rounded-2xl flex gap-4 cursor-pointer hover:bg-white/5 transition-colors" onClick={() => onSelectWine(wine)}>
                   <div className="w-20 h-28 shrink-0 rounded-lg overflow-hidden bg-wine-900/50">
@@ -365,7 +373,7 @@ export default function DiscoverTab({ onSelectWine, initialState }: { onSelectWi
       {/* Explore Regions */}
       <div className="mb-12">
         <h3 className="text-xl font-semibold px-6 mb-4">Explore Regions</h3>
-        <div className="grid grid-cols-2 gap-4 px-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 px-6">
           <RegionCard name="Stellenbosch" image="https://images.unsplash.com/photo-1560493676-04071c5f467b?q=80&w=600&auto=format&fit=crop" onClick={() => setSelectedRegion("Stellenbosch")} />
           <RegionCard name="Franschhoek" image="https://images.unsplash.com/photo-1595854341625-f33ee10dbf94?q=80&w=600&auto=format&fit=crop" onClick={() => setSelectedRegion("Franschhoek")} />
           <RegionCard name="Swartland" image="https://images.unsplash.com/photo-1504279577054-acfeccf8fc52?q=80&w=600&auto=format&fit=crop" onClick={() => setSelectedRegion("Swartland")} />

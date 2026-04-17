@@ -145,7 +145,7 @@ export default function WineDetail({ wine, onClose }: { wine: any, onClose: () =
 
     setIsGeneratingMusic(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || process.env.GEMINI_API_KEY });
       const response = await ai.models.generateContentStream({
         model: "lyria-3-clip-preview",
         contents: `Generate a 30-second track inspired by this wine: ${wine.name}, a ${wine.grape} from ${wine.region}. The vibe should be ${wine.notes || 'elegant and complex'}.`,
@@ -196,9 +196,9 @@ export default function WineDetail({ wine, onClose }: { wine: any, onClose: () =
 
     setIsGeneratingImage(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || process.env.GEMINI_API_KEY });
       const response = await ai.models.generateContent({
-        model: 'gemini-3.1-flash-image-preview',
+        model: 'imagen-3.0-generate-002',
         contents: {
           parts: [
             {
@@ -233,10 +233,11 @@ export default function WineDetail({ wine, onClose }: { wine: any, onClose: () =
       initial={{ opacity: 0, y: 100 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 100 }}
-      className="fixed inset-0 z-[60] bg-wine-900 overflow-y-auto hide-scrollbar"
+      className="fixed inset-0 z-[60] bg-wine-900/90 overflow-y-auto hide-scrollbar backdrop-blur-sm"
     >
+     <div className="w-full max-w-3xl mx-auto bg-wine-900 min-h-screen relative shadow-2xl">
       {/* Top Bar */}
-      <div className="fixed top-0 left-0 right-0 p-6 flex justify-between items-center z-10">
+      <div className="absolute top-0 left-0 right-0 p-6 flex justify-between items-center z-10">
         <button onClick={onClose} className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white hover:bg-black/60 transition-colors">
           <ChevronLeft size={24} />
         </button>
@@ -458,6 +459,7 @@ export default function WineDetail({ wine, onClose }: { wine: any, onClose: () =
           <LogGlassModal wine={wine} onClose={() => setShowLogGlass(false)} />
         )}
       </AnimatePresence>
+     </div>
     </motion.div>
   );
 }

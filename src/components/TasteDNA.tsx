@@ -55,7 +55,7 @@ export default function TasteDNA() {
           setEditData(mergedData);
         }
       } catch (error) {
-        console.error("Error fetching taste profile:", error);
+        handleFirestoreError(error, OperationType.GET, `users/${auth.currentUser.uid}/profile/tasteDNA`);
       }
     };
     fetchTasteProfile();
@@ -129,8 +129,8 @@ export default function TasteDNA() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
-            <div className="h-[280px] w-full -ml-2 relative z-10">
-              <ResponsiveContainer width="100%" height="100%">
+            <div className="h-[280px] w-full -ml-2 relative z-10 overflow-hidden min-w-[50px] min-h-[50px]">
+              <ResponsiveContainer width="99%" height="99%" minWidth={50} minHeight={50}>
                 <RadarChart cx="50%" cy="50%" outerRadius="65%" data={tasteData}>
                   <PolarGrid stroke="rgba(255,255,255,0.05)" />
                   <PolarAngleAxis 

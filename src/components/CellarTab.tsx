@@ -105,7 +105,7 @@ export default function CellarTab({ onSelectWine, onNavigate }: { onSelectWine: 
   });
 
   return (
-    <div className="pb-32 pt-12 px-6">
+    <div className="pb-32 pt-12 px-6 w-full max-w-6xl mx-auto">
       <div className="flex justify-between items-end mb-6">
         <div>
           <h2 className="text-3xl font-serif font-semibold mb-1">My Collection</h2>
@@ -193,7 +193,7 @@ export default function CellarTab({ onSelectWine, onNavigate }: { onSelectWine: 
           <p className="text-sm mt-2">Scan or discover a bottle to add it.</p>
         </div>
       ) : layoutMode === 'grid' ? (
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
           {displayData.map((wine) => (
             <CellarBottle 
               key={wine.id}

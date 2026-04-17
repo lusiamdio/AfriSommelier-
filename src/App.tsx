@@ -6,7 +6,8 @@ import React, { useState, useEffect } from 'react';
 import { AnimatePresence } from 'motion/react';
 import { Home, Compass, ScanLine, MessageSquare, Grape } from 'lucide-react';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { auth } from './firebase';
+import { doc, getDocFromCache, getDocFromServer } from 'firebase/firestore';
+import { auth, db } from './firebase';
 import HomeTab from './components/HomeTab';
 import DiscoverTab from './components/DiscoverTab';
 import ScanTab from './components/ScanTab';
@@ -26,6 +27,17 @@ export default function App() {
   const [initialChatState, setInitialChatState] = useState<{ role: 'user' | 'model', text: string } | null>(null);
 
   useEffect(() => {
+    async function testConnection() {
+      try {
+        await getDocFromServer(doc(db, 'test', 'connection'));
+      } catch (error) {
+        if(error instanceof Error && error.message.includes('the client is offline')) {
+          console.error("Please check your Firebase configuration. ");
+        }
+      }
+    }
+    testConnection();
+
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       setLoading(false);

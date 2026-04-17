@@ -41,4 +41,46 @@ Wine Wise - South African Wine Knowledge:
 - Port-style: Called Ruby or Tawny in SA (cannot use the word Port). Mainly made in Calitzdorp and the Klein Karoo.
 - Sherry-style: Named Pale Dry, Medium, or Cream in SA. Mostly made from Chenin Blanc.
 - Fortified Muscats & Jerepigo: Jerepigo is made by adding neutral grape spirit to unfermented juice. Muscadel (Hanepoot) is popular for sweet fortified wines.
+6. Advanced Food and Wine Pairing (Court of Master Sommeliers):
+- Structure Matching:
+  - Weight with Weight: Body of wine and food should match (full/full, light/light). Lighter wines need robust flavour/high acidity to stand up to heavy food.
+  - Acidity Needs Acidity: Wine acidity must match or exceed food acidity (otherwise wine tastes flabby). Acidity also cuts saltiness and balances sugar.
+  - Sweets Need Sweets: Wine residual sugar must match or exceed food sugar, otherwise the wine tastes bitter. 
+- Texture and Flavour Balancing:
+  - Tannins: Tannins love fat and protein (which soften tannins).
+  - Fish Oils: Fish oils love acidity but hate tannins (fish + tannin = metallic taste).
+  - Spicy Food: Alcohol + spicy = fire burn. Spice + sugar = cooling effect (no fire).
+  - Salt: Salt is great with sweet/fruity wine, and softens tannins.
+- Pairing Strategy: Look at the dominant component, the sauce/condiments (which usually drive the pairing), and the cooking method impact.
+
+7. Master Pairings - Sweet Foods:
+- Dark Chocolate: Cabernet Sauvignon, Pinot Noir, Zinfandel
+- White Chocolate: Riesling, Moscato, Sweet Rosé
+- Baked Fruit Pies: Sherry, Monbazzillac, Grüner Veltliner
+- Chocolate Chip Cookies: Cabernet Sauvignon, Pinot Noir
+- Peach Cobbler: Riesling, Moscato, Pinot Grigio
+- Lemon Bars: Moscato, Chardonnay, Riesling
+- Sweet Potato Pie: Riesling, Muscat, Pinot Gris
+- Strawberry Cheesecake: Port, Riesling, Chardonnay
+
+8. Master Pairings - Umami/Savory Foods:
+- Mushrooms/Truffles: Nebbiolo, Merlot, Rioja, Chardonnay
+- Beef/Steak: Cabernet Sauvignon, Zinfandel, Malbec, Syrah, Barolo, Red Bordeaux
+- Cheddar/Aged Cheeses: Cabernet Sauvignon, Rioja, Pinot Noir
+- Tomatoes/Tomato Sauce: Sangiovese, Barbera, Montepulciano, Chianti, Zinfandel
+- Sweet Potatoes: Grenache, Merlot, Chardonnay
+- Oysters/Shellfish: Chablis, Viognier, Albariño, Champagne
+- Fish Sauces: Chenin Blanc, Pinot Gris, Grenache
+- Soy Sauces: Moscato, Chablis, Pinot Gris
+- Curry/Spicy Asian: Gewürztraminer, Riesling, Alsace Pinot Gris
+
+9. Classic Regional & Global Pairings:
+- Foie Gras: Sauternes or Late Harvest Riesling
+- Fresh Goat Cheese: Sauvignon Blanc
+- Sardines: Fino Sherry
+- Stilton/Blue Cheese: Port or Sauternes
+- Caviar: Champagne
+- Pork: Beaujolais, Pinot Grigio (BBQ), Sauvignon Blanc, Chardonnay
+- Poultry: Pinot Noir, Chardonnay, Sauvignon Blanc, Rioja
+- Salmon: Pinot Noir, Red Burgundy, Pinot Grigio
 `;

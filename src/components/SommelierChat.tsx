@@ -134,10 +134,10 @@ export default function SommelierChat({ onClose, initialMessage }: { onClose: ()
       };
 
       const response = await ai.models.generateContent({
-        model: isDeepAnalysis ? "gemini-3.1-pro-preview" : "gemini-3-flash-preview",
+        model: isDeepAnalysis ? "gemini-3.1-pro-preview" : "gemini-2.5-flash",
         contents: contents as any,
-        tools: [{ googleSearch: {} }],
         config: {
+          tools: [{ googleSearch: {} }],
           systemInstruction: `You are a Master Sommelier specializing in South African wines. Keep your answers concise, elegant, and helpful.
           
           Here is some specific knowledge about South African wine farms and their 2026 rankings:
@@ -224,10 +224,11 @@ export default function SommelierChat({ onClose, initialMessage }: { onClose: ()
       initial={{ opacity: 0, y: 50 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 50 }}
-      className="fixed inset-0 z-50 flex flex-col bg-wine-900/95 backdrop-blur-xl"
+      className="fixed inset-0 z-50 flex flex-col items-center bg-wine-900/95 backdrop-blur-xl"
     >
+     <div className="flex flex-col w-full h-full max-w-4xl relative">
       {/* Header */}
-      <div className="flex justify-between items-center p-6 border-b border-glass-border">
+      <div className="flex justify-between items-center p-6 border-b border-glass-border shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-wine-800 flex items-center justify-center relative overflow-hidden shadow-[0_0_15px_rgba(198,169,107,0.3)]">
             <div className="absolute inset-0 bg-gold-500/20 blur-md animate-pulse"></div>
@@ -344,6 +345,7 @@ export default function SommelierChat({ onClose, initialMessage }: { onClose: ()
           </button>
         </div>
       </div>
+     </div>
     </motion.div>
   );
 }

@@ -32,6 +32,10 @@ export default function HomeTab({ onSelectWine, onNavigate }: { onSelectWine: (w
       });
       setGlassesThisWeek(glasses);
       setCaloriesThisWeek(calories);
+    }, (error) => {
+      import('../utils/firestoreErrorHandler').then(({ handleFirestoreError, OperationType }) => {
+        handleFirestoreError(error, OperationType.GET, `users/${auth.currentUser?.uid}/consumption`);
+      });
     });
 
     // Fetch Events
@@ -45,6 +49,10 @@ export default function HomeTab({ onSelectWine, onNavigate }: { onSelectWine: (w
       // Filter out past events
       const today = new Date().toISOString().split('T')[0];
       setEvents(fetchedEvents.filter(e => e.date >= today));
+    }, (error) => {
+      import('../utils/firestoreErrorHandler').then(({ handleFirestoreError, OperationType }) => {
+        handleFirestoreError(error, OperationType.GET, `users/${auth.currentUser?.uid}/events`);
+      });
     });
 
     return () => {
@@ -54,7 +62,7 @@ export default function HomeTab({ onSelectWine, onNavigate }: { onSelectWine: (w
   }, []);
 
   return (
-    <div className="pb-32">
+    <div className="pb-32 w-full max-w-5xl mx-auto">
       {/* Top Bar */}
       <div className="flex justify-between items-center p-6">
         <button 
@@ -69,19 +77,19 @@ export default function HomeTab({ onSelectWine, onNavigate }: { onSelectWine: (w
       </div>
 
       {/* Hero Section */}
-      <div className="px-6 mb-10">
+      <div className="px-6 mb-10 mt-4 md:mt-8">
         <motion.h1 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-4xl font-serif font-semibold mb-2"
+          className="text-4xl md:text-5xl font-serif font-semibold mb-2"
         >
-          Good evening, Lusimadio <span className="text-wine-700">🍷</span>
+          Good evening, {auth.currentUser?.displayName?.split(' ')[0] || 'Friend'} <span className="text-transparent text-shadow-sm">🍷</span>
         </motion.h1>
         <motion.p 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="text-gray-400 text-lg"
+          className="text-gray-400 text-lg md:text-xl"
         >
           Here's your perfect match
         </motion.p>
@@ -93,7 +101,7 @@ export default function HomeTab({ onSelectWine, onNavigate }: { onSelectWine: (w
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.2 }}
-          className="relative rounded-[32px] overflow-hidden aspect-[4/5] shadow-2xl"
+          className="relative rounded-[32px] overflow-hidden aspect-[4/5] sm:aspect-square md:aspect-[21/9] shadow-2xl"
         >
           <img src="https://images.unsplash.com/photo-1584916201218-f4242ceb4809?q=80&w=800&auto=format&fit=crop" alt="Wine" className="absolute inset-0 w-full h-full object-cover" referrerPolicy="no-referrer" />
           <div className="absolute inset-0 bg-gradient-to-t from-wine-900 via-wine-900/40 to-transparent"></div>
