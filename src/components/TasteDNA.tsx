@@ -6,6 +6,15 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { handleFirestoreError, OperationType } from '../utils/firestoreErrorHandler';
 
+// Suppress harmless Recharts warning caused by Framer Motion unmounts
+const originalWarn = console.warn;
+console.warn = (...args: any[]) => {
+  if (typeof args[0] === 'string' && args[0].includes('The width') && args[0].includes('and height') && args[0].includes('should be greater than 0')) {
+    return;
+  }
+  originalWarn(...args);
+};
+
 const defaultTasteData = [
   { subject: 'Boldness', You: 85, Critics: 65, Stellenbosch: 90, fullMark: 100 },
   { subject: 'Tannin', You: 70, Critics: 80, Stellenbosch: 85, fullMark: 100 },
@@ -129,8 +138,8 @@ export default function TasteDNA() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
-            <div className="h-[280px] w-full -ml-2 relative z-10 overflow-hidden min-w-[50px] min-h-[50px]">
-              <ResponsiveContainer width="99%" height="99%" minWidth={50} minHeight={50}>
+            <div className="h-[280px] w-full -ml-2 relative z-10">
+              <ResponsiveContainer width="100%" height="100%">
                 <RadarChart cx="50%" cy="50%" outerRadius="65%" data={tasteData}>
                   <PolarGrid stroke="rgba(255,255,255,0.05)" />
                   <PolarAngleAxis 

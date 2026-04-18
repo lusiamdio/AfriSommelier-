@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, ChevronLeft, Heart, Share, Star, Leaf, Activity, Droplet, Edit3, Check, ShoppingCart, Music, Image as ImageIcon, Loader2 } from 'lucide-react';
+import { X, ChevronLeft, Heart, Share, Star, Leaf, Activity, Droplet, Edit3, Check, ShoppingCart, Music, Image as ImageIcon, Loader2, Tag } from 'lucide-react';
 import { collection, addDoc, deleteDoc, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { handleFirestoreError, OperationType } from '../utils/firestoreErrorHandler';
@@ -19,6 +19,11 @@ export default function WineDetail({ wine, onClose }: { wine: any, onClose: () =
   const [musicUrl, setMusicUrl] = useState<string | null>(null);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null);
+
+  const [couponCode, setCouponCode] = useState('');
+  const [discountPercent, setDiscountPercent] = useState(0);
+  const [couponMessage, setCouponMessage] = useState({ text: '', type: '' });
+  const [showCouponInput, setShowCouponInput] = useState(false);
 
   useEffect(() => {
     const checkWishlist = async () => {
@@ -115,6 +120,29 @@ export default function WineDetail({ wine, onClose }: { wine: any, onClose: () =
     // In a real app, this would open a checkout modal or redirect to a partner
     alert(`Redirecting to partner retailer to purchase ${wine.name}...`);
   };
+
+  const handleApplyCoupon = () => {
+    const code = couponCode.trim().toUpperCase();
+    if (code === 'SOMMELIER10') {
+      setDiscountPercent(0.10);
+      setCouponMessage({ text: '10% discount applied!', type: 'success' });
+    } else if (code === 'VINTAGE20') {
+      setDiscountPercent(0.20);
+      setCouponMessage({ text: '20% discount applied!', type: 'success' });
+    } else {
+      setDiscountPercent(0);
+      setCouponMessage({ text: 'Invalid coupon code', type: 'error' });
+    }
+  };
+
+  const priceString = wine.price || 'R 950';
+  const numericPriceMatch = priceString.match(/[\d,.]+/);
+  const numericPrice = numericPriceMatch ? parseFloat(numericPriceMatch[0].replace(/,/g, '')) : 0;
+  const currencySymbol = priceString.replace(/[\d,.\s]/g, '') || 'R ';
+  const discountedPrice = numericPrice > 0 ? numericPrice * (1 - discountPercent) : 0;
+  const displayPrice = discountPercent > 0 && numericPrice > 0
+    ? `${currencySymbol} ${discountedPrice.toFixed(2).replace(/\.00$/, '')}`
+    : priceString;
 
   const saveNotes = async () => {
     if (!auth.currentUser || !wine.id) return;
@@ -437,19 +465,65 @@ export default function WineDetail({ wine, onClose }: { wine: any, onClose: () =
         </div>
 
         {/* Buy Section */}
-        <div className="fixed bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-wine-900 via-wine-900 to-transparent z-20">
-          <div className="flex gap-4 items-center max-w-md mx-auto">
+        <div className="mb-12 mt-4 glass-panel p-6 rounded-2xl flex flex-col gap-4">
+          <div className="flex gap-4 items-center">
             <div className="flex-1">
               <p className="text-sm text-gray-400">Best Price</p>
-              <p className="text-2xl font-serif font-semibold text-gold-500">{wine.price || 'R 950'}</p>
+              <div className="flex flex-wrap items-center gap-2">
+                {discountPercent > 0 ? (
+                  <>
+                    <span className="text-lg text-gray-500 line-through">{priceString}</span>
+                    <span className="text-2xl font-serif font-semibold text-green-400">{displayPrice}</span>
+                  </>
+                ) : (
+                  <span className="text-2xl font-serif font-semibold text-gold-500">{priceString}</span>
+                )}
+              </div>
             </div>
             <button 
               onClick={handleBuy}
-              className="flex-2 bg-gold-500 text-wine-900 font-medium py-4 px-8 rounded-2xl hover:scale-[0.98] transition-transform flex items-center gap-2"
+              className="bg-gold-500 text-wine-900 font-medium py-3 px-6 rounded-xl hover:scale-[0.98] transition-transform flex items-center gap-2 flex-shrink-0"
             >
               <ShoppingCart size={18} />
               Buy Now
             </button>
+          </div>
+
+          <div className="pt-4 border-t border-glass-border">
+            {!showCouponInput ? (
+              <button 
+                onClick={() => setShowCouponInput(true)} 
+                className="text-sm text-gold-500 hover:text-gold-400 flex items-center gap-1 transition-colors"
+              >
+                <Tag size={14} /> Have a discount code?
+              </button>
+            ) : (
+              <div className="flex flex-col gap-2">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Enter code (e.g. VINTAGE20)"
+                    value={couponCode}
+                    onChange={(e) => {
+                      setCouponCode(e.target.value);
+                      setCouponMessage({ text: '', type: '' });
+                    }}
+                    className="flex-1 bg-wine-900/50 border border-glass-border rounded-lg px-3 py-2 text-sm text-ivory placeholder-gray-500 focus:outline-none focus:border-gold-500/50 uppercase"
+                  />
+                  <button
+                    onClick={handleApplyCoupon}
+                    className="bg-white/10 hover:bg-white/20 text-ivory text-sm px-4 py-2 rounded-lg transition-colors border border-glass-border whitespace-nowrap"
+                  >
+                    Apply
+                  </button>
+                </div>
+                {couponMessage.text && (
+                  <p className={`text-xs ${couponMessage.type === 'error' ? 'text-red-400' : 'text-green-400'}`}>
+                    {couponMessage.text}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
