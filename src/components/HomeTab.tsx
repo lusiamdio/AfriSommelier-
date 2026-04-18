@@ -201,7 +201,7 @@ export default function HomeTab({ onSelectWine, onNavigate }: { onSelectWine: (w
         <PairingCard food="Cape Malay Curry" wine="Gewürztraminer" image="https://images.unsplash.com/photo-1565557623262-b51c2513a641?q=80&w=400&auto=format&fit=crop" />
       </div>
 
-      <Section title="Trending in SA" onSeeAll={() => onNavigate('discover', { query: 'Trending South African wines' })} />
+      <Section title="Trending in SA" onSeeAll={() => onNavigate('trending')} />
       <div className="flex overflow-x-auto hide-scrollbar px-6 gap-4 mb-12">
         <TrendingCard 
           name="Hamilton Russell" 

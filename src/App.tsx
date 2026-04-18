@@ -15,7 +15,7 @@ import CellarTab from './components/CellarTab';
 import SommelierChat from './components/SommelierChat';
 import WineDetail from './components/WineDetail';
 import LoginScreen from './components/LoginScreen';
-
+import TrendingTab from './components/TrendingTab';
 import ProfileTab from './components/ProfileTab';
 
 export default function App() {
@@ -110,6 +110,7 @@ export default function App() {
           if (tab === 'ai' && state) setInitialChatState(state);
         }} />}
         {activeTab === 'profile' && <ProfileTab onNavigate={(tab) => setActiveTab(tab)} />}
+        {activeTab === 'trending' && <TrendingTab onBack={() => setActiveTab('home')} />}
       </main>
 
       {/* Floating Glass Navigation Bar */}
