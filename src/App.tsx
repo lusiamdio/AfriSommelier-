@@ -17,6 +17,8 @@ import WineDetail from './components/WineDetail';
 import LoginScreen from './components/LoginScreen';
 import TrendingTab from './components/TrendingTab';
 import ProfileTab from './components/ProfileTab';
+import PairWithDinnerPage from './components/PairWithDinnerPage';
+import PairingEngine from './components/PairingEngine';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('home');
@@ -111,6 +113,15 @@ export default function App() {
         }} />}
         {activeTab === 'profile' && <ProfileTab onNavigate={(tab) => setActiveTab(tab)} />}
         {activeTab === 'trending' && <TrendingTab onBack={() => setActiveTab('home')} />}
+        {activeTab === 'pairings' && <PairWithDinnerPage onBack={() => setActiveTab('home')} onNavigate={(tab, state) => {
+          setActiveTab(tab);
+          if (tab === 'discover' && state) setInitialDiscoverState(state);
+          if (tab === 'ai' && state) setInitialChatState(state);
+        }} />}
+        {activeTab === 'pairing-engine' && <PairingEngine onBack={() => setActiveTab('pairings')} onNavigate={(tab, state) => {
+          setActiveTab(tab);
+          if (tab === 'discover' && state) setInitialDiscoverState(state);
+        }} />}
       </main>
 
       {/* Floating Glass Navigation Bar */}

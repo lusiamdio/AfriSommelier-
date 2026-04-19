@@ -194,7 +194,7 @@ export default function HomeTab({ onSelectWine, onNavigate }: { onSelectWine: (w
       </div>
 
       {/* Sections */}
-      <Section title="Pair with dinner" onSeeAll={() => onNavigate('discover', { query: 'Dinner pairings' })} />
+      <Section title="Pair with dinner" onSeeAll={() => onNavigate('pairings')} />
       <div className="flex overflow-x-auto hide-scrollbar px-6 gap-4 mb-12">
         <PairingCard food="Braai Meat" wine="Pinotage" image="https://images.unsplash.com/photo-1544025162-d76694265947?q=80&w=400&auto=format&fit=crop" />
         <PairingCard food="Bobotie" wine="Chenin Blanc" image="https://images.unsplash.com/photo-1580476262798-bddd9f4b7369?q=80&w=400&auto=format&fit=crop" />
