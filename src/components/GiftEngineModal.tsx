@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Gift, Sparkles, Loader2, ChevronRight } from 'lucide-react';
-import { GoogleGenAI, Type, Schema } from '@google/genai';
+import { callOpenRouter } from '../services/openRouterService';
 
 export default function GiftEngineModal({ onClose, onSelectWine }: { onClose: () => void, onSelectWine: (wine: any) => void }) {
   const [recipient, setRecipient] = useState('');
@@ -15,42 +15,30 @@ export default function GiftEngineModal({ onClose, onSelectWine }: { onClose: ()
     setIsGenerating(true);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      
-      const responseSchema: Schema = {
-        type: Type.OBJECT,
-        properties: {
-          wine: {
-            type: Type.OBJECT,
-            properties: {
-              name: { type: Type.STRING },
-              vintage: { type: Type.STRING },
-              region: { type: Type.STRING },
-              price: { type: Type.STRING },
-              grape: { type: Type.STRING },
-              rating: { type: Type.NUMBER },
-            },
-            required: ["name", "vintage", "region", "price", "grape", "rating"]
-          },
-          prestigeLevel: { type: Type.STRING, description: "e.g., 'Ultra Premium', 'Hidden Gem', 'Cult Classic'" },
-          reason: { type: Type.STRING, description: "Why this is the perfect gift for this specific recipient and occasion." }
-        },
-        required: ["wine", "prestigeLevel", "reason"]
-      };
+      const systemInstruction = `You are an elite sommelier specializing in South African wine gifting. Suggest an impressive, appropriate wine.
+You must return your response strictly as a JSON object with the following structure, responding with valid JSON only:
+{
+  "wine": {
+    "name": "string",
+    "vintage": "string",
+    "region": "string",
+    "price": "string",
+    "grape": "string",
+    "rating": number
+  },
+  "prestigeLevel": "string (e.g., 'Ultra Premium', 'Hidden Gem', 'Cult Classic')",
+  "reason": "string (Why this is the perfect gift for this specific recipient and occasion.)"
+}`;
 
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: [
-          { role: 'user', parts: [{ text: `Suggest the perfect South African wine gift. Recipient: ${recipient}. Occasion: ${occasion}. Budget: ${budget}.` }] }
-        ],
-        config: {
-          systemInstruction: "You are an elite sommelier specializing in South African wine gifting. Suggest an impressive, appropriate wine.",
-          responseMimeType: "application/json",
-          responseSchema: responseSchema
-        }
+      const prompt = `Suggest the perfect South African wine gift. Recipient: ${recipient}. Occasion: ${occasion}. Budget: ${budget}.`;
+
+      const responseText = await callOpenRouter({
+        prompt,
+        systemPrompt: systemInstruction,
+        responseFormat: { type: "json_object" }
       });
 
-      const data = JSON.parse(response.text || "{}");
+      const data = JSON.parse(responseText || "{}");
       setResult(data);
     } catch (error) {
       console.error("Gift Engine Error:", error);

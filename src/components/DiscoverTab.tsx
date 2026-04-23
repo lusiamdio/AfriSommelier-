@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Search, Gift, Users, Loader2, Trophy, Filter } from 'lucide-react';
-import { GoogleGenAI, Type } from '@google/genai';
 import TasteDNA from './TasteDNA';
 import GiftEngineModal from './GiftEngineModal';
 import PartyModeModal from './PartyModeModal';
@@ -10,6 +9,7 @@ import AwardsModal from './AwardsModal';
 import { WINE_FARMS_KNOWLEDGE } from '../data/wineKnowledge';
 import { WINE_COURSE_KNOWLEDGE } from '../data/educationalCourseKnowledge';
 import { WINE_WISE_KNOWLEDGE } from '../data/wineWiseKnowledge';
+import { callOpenRouter } from '../services/openRouterService';
 
 export default function DiscoverTab({ onSelectWine, initialState }: { onSelectWine: (wine: any) => void, initialState?: any }) {
   const [showGiftEngine, setShowGiftEngine] = useState(false);
@@ -54,58 +54,38 @@ export default function DiscoverTab({ onSelectWine, initialState }: { onSelectWi
     if (currentPrice !== 'All') filterContext += ` Must be in the price range of ${currentPrice}.`;
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: [
-          {
-            role: "user",
-            parts: [
-              {
-                text: `You are a master sommelier. The user is searching for: "${searchQuery}".${filterContext}
-                Suggest 3 real South African wines that perfectly match this query and these filters.
-                  
-                  Here is some specific knowledge about South African wine farms and their 2026 rankings:
-                  ${WINE_FARMS_KNOWLEDGE}
-                  
-                  Here is the official South African Wine Educational Course knowledge:
-                  ${WINE_COURSE_KNOWLEDGE}
-                  
-                  Here is the Wine Wise South African Wine Knowledge:
-                  ${WINE_WISE_KNOWLEDGE}`
-                }
-              ]
-            }
-          ],
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              wines: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    name: { type: Type.STRING, description: "Full name of the wine" },
-                    vintage: { type: Type.STRING, description: "Year (or 'NV')" },
-                    region: { type: Type.STRING, description: "Region/Country" },
-                    grape: { type: Type.STRING, description: "Primary grape varietal" },
-                    notes: { type: Type.STRING, description: "A short, elegant 2-sentence sommelier description" },
-                    price: { type: Type.STRING, description: "Price listed or estimated in ZAR" },
-                    rating: { type: Type.INTEGER, description: "Rating score out of 100" },
-                    match: { type: Type.STRING, description: "A percentage string like '95%'" }
-                  },
-                  required: ["name", "vintage", "region", "grape", "notes", "price", "rating", "match"]
-                }
-              }
-            },
-            required: ["wines"]
-          }
-        }
+      const systemInstruction = `You are a master sommelier processing a query. You must return your response strictly as a JSON object with valid JSON only.
+Structure:
+{
+  "wines": [
+    {
+      "name": "string",
+      "vintage": "string",
+      "region": "string",
+      "grape": "string",
+      "notes": "A short, elegant 2-sentence sommelier description",
+      "price": "string",
+      "rating": number,
+      "match": "string (percentage like '95%')"
+    }
+  ]
+}`;
+
+      const userPrompt = `The user is searching for: "${searchQuery}".${filterContext}
+Suggest 3 real South African wines that perfectly match this query and these filters.
+
+Reference Knowledge:
+${WINE_FARMS_KNOWLEDGE.substring(0, 500)}...
+${WINE_COURSE_KNOWLEDGE.substring(0, 500)}...
+${WINE_WISE_KNOWLEDGE.substring(0, 500)}...`;
+
+      const responseText = await callOpenRouter({
+        prompt: userPrompt,
+        systemPrompt: systemInstruction,
+        responseFormat: { type: "json_object" }
       });
 
-      const data = JSON.parse(response.text || "{}");
+      const data = JSON.parse(responseText || "{}");
       
       setSearchResults(data.wines || []);
       } catch (error) {

@@ -1,11 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Send, Mic, Sparkles, ChevronRight, Brain, Volume2, Loader2 } from 'lucide-react';
-import { GoogleGenAI, Type, Schema, ThinkingLevel, Modality } from '@google/genai';
 import WinePourLoader from './WinePourLoader';
 import { WINE_FARMS_KNOWLEDGE } from '../data/wineKnowledge';
 import { WINE_COURSE_KNOWLEDGE } from '../data/educationalCourseKnowledge';
 import { WINE_WISE_KNOWLEDGE } from '../data/wineWiseKnowledge';
+import { callOpenRouter } from '../services/openRouterService';
 
 export default function SommelierChat({ onClose, initialMessage }: { onClose: () => void, initialMessage?: { role: 'user' | 'model', text: string, autoVoice?: boolean } | null }) {
   const [messages, setMessages] = useState<{role: 'user' | 'model', text: string, data?: any}[]>(() => {
@@ -100,61 +100,42 @@ export default function SommelierChat({ onClose, initialMessage }: { onClose: ()
     setIsLoading(true);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      
-      const contents = [
-        ...messages.map(m => ({ role: m.role, parts: [{ text: m.text }] })),
-        { role: 'user', parts: [{ text: userMsg }] }
+      const openRouterMessages = [
+        ...messages.map(m => ({
+           role: m.role === 'model' ? 'assistant' : 'user', 
+           content: m.text 
+        })),
+        { role: 'user', content: userMsg }
       ];
 
-      const responseSchema: Schema = {
-        type: Type.OBJECT,
-        properties: {
-          message: {
-            type: Type.STRING,
-            description: "A conversational, elegant response from the sommelier."
-          },
-          wines: {
-            type: Type.ARRAY,
-            description: "A list of 1 to 3 recommended wines based on the user's request.",
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                name: { type: Type.STRING },
-                vintage: { type: Type.STRING },
-                region: { type: Type.STRING },
-                price: { type: Type.STRING },
-                reason: { type: Type.STRING, description: "Why this wine is recommended." }
-              },
-              required: ["name", "vintage", "region", "price", "reason"]
-            }
-          }
-        },
-        required: ["message", "wines"]
-      };
+      const systemInstruction = `You are a Master Sommelier specializing in South African wines. Keep your answers concise, elegant, and helpful. You must return your response strictly as a JSON object responding with valid JSON only.
+Structure:
+{
+  "message": "A conversational, elegant response from the sommelier.",
+  "wines": [
+    {
+      "name": "string",
+      "vintage": "string",
+      "region": "string",
+      "price": "string",
+      "reason": "Why this wine is recommended."
+    }
+  ]
+}
+Here is specific knowledge about African wine farms and basics:
+${WINE_FARMS_KNOWLEDGE.substring(0, 500)}...
+${WINE_COURSE_KNOWLEDGE.substring(0, 500)}...
+${WINE_WISE_KNOWLEDGE.substring(0, 500)}...`;
 
-      const response = await ai.models.generateContent({
-        model: isDeepAnalysis ? "gemini-3.1-pro-preview" : "gemini-2.5-flash",
-        contents: contents as any,
-        config: {
-          tools: [{ googleSearch: {} }],
-          systemInstruction: `You are a Master Sommelier specializing in South African wines. Keep your answers concise, elegant, and helpful.
-          
-          Here is some specific knowledge about South African wine farms and their 2026 rankings:
-          ${WINE_FARMS_KNOWLEDGE}
-          
-          Here is the official South African Wine Educational Course knowledge:
-          ${WINE_COURSE_KNOWLEDGE}
-          
-          Here is the Wine Wise South African Wine Knowledge:
-          ${WINE_WISE_KNOWLEDGE}`,
-          responseMimeType: "application/json",
-          responseSchema: responseSchema,
-          ...(isDeepAnalysis ? { thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH } } : {})
-        }
+      const responseText = await callOpenRouter({
+        messages: openRouterMessages,
+        systemPrompt: systemInstruction,
+        responseFormat: { type: "json_object" },
+        // Use a more intelligent model if Deep Analysis is toggled on OpenRouter
+        model: isDeepAnalysis ? "anthropic/claude-3-opus" : "openai/gpt-4o-mini"
       });
 
-      const data = JSON.parse(response.text || "{}");
+      const data = JSON.parse(responseText || "{}");
       
       setMessages(prev => [...prev, { 
         role: 'model', 
@@ -171,51 +152,16 @@ export default function SommelierChat({ onClose, initialMessage }: { onClose: ()
 
   const handleTTS = async (text: string) => {
     if (isPlayingTTS) return;
-    setIsPlayingTTS(true);
-    try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash-preview-tts",
-        contents: [{ parts: [{ text }] }],
-        config: {
-          responseModalities: [Modality.AUDIO],
-          speechConfig: {
-            voiceConfig: {
-              prebuiltVoiceConfig: { voiceName: 'Puck' },
-            },
-          },
-        },
-      });
-
-      const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-      if (base64Audio) {
-        const binaryString = atob(base64Audio);
-        const bytes = new Uint8Array(binaryString.length);
-        for (let i = 0; i < binaryString.length; i++) {
-          bytes[i] = binaryString.charCodeAt(i);
-        }
-        
-        const int16Array = new Int16Array(bytes.buffer);
-        const float32Array = new Float32Array(int16Array.length);
-        for (let i = 0; i < int16Array.length; i++) {
-          float32Array[i] = int16Array[i] / 32768.0;
-        }
-
-        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-        const audioBuffer = audioContext.createBuffer(1, float32Array.length, 24000);
-        audioBuffer.getChannelData(0).set(float32Array);
-
-        const source = audioContext.createBufferSource();
-        source.buffer = audioBuffer;
-        source.connect(audioContext.destination);
-        source.onended = () => setIsPlayingTTS(false);
-        source.start(0);
-      } else {
-        setIsPlayingTTS(false);
-      }
-    } catch (error) {
-      console.error("TTS error:", error);
-      setIsPlayingTTS(false);
+    
+    if ('speechSynthesis' in window) {
+      setIsPlayingTTS(true);
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'en-ZA';
+      utterance.onend = () => setIsPlayingTTS(false);
+      utterance.onerror = () => setIsPlayingTTS(false);
+      window.speechSynthesis.speak(utterance);
+    } else {
+      console.warn("Text-to-Speech not supported in this browser.");
     }
   };
 

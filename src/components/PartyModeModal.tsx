@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Users, Sparkles, Loader2, ChevronRight } from 'lucide-react';
-import { GoogleGenAI, Type, Schema } from '@google/genai';
+import { callOpenRouter } from '../services/openRouterService';
 
 export default function PartyModeModal({ onClose, onSelectWine }: { onClose: () => void, onSelectWine: (wine: any) => void }) {
   const [groupDescription, setGroupDescription] = useState('');
@@ -14,41 +14,26 @@ export default function PartyModeModal({ onClose, onSelectWine }: { onClose: () 
     setIsGenerating(true);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      
-      const responseSchema: Schema = {
-        type: Type.OBJECT,
-        properties: {
-          rankedWines: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                name: { type: Type.STRING },
-                score: { type: Type.NUMBER, description: "Group satisfaction score out of 100" },
-                reason: { type: Type.STRING, description: "Why this works for the group." }
-              },
-              required: ["name", "score", "reason"]
-            }
-          },
-          groupSummary: { type: Type.STRING, description: "A fun summary of the group's collective palate." }
-        },
-        required: ["rankedWines", "groupSummary"]
-      };
+      const systemInstruction = `You are a fun, expert sommelier analyzing a group of people and ranking a list of wines to maximize overall group satisfaction. You must return your response strictly as a JSON object, responding with valid JSON only.
+Structure:
+{
+  "rankedWines": [
+    {
+      "name": "string",
+      "score": number (Group satisfaction score out of 100),
+      "reason": "Why this works for the group."
+    }
+  ],
+  "groupSummary": "A fun summary of the group's collective palate."
+}`;
 
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: [
-          { role: 'user', parts: [{ text: `Rank these wines for my group. Group: ${groupDescription}. Wines available: ${winesAvailable}.` }] }
-        ],
-        config: {
-          systemInstruction: "You are a fun, expert sommelier analyzing a group of people and ranking a list of wines to maximize overall group satisfaction.",
-          responseMimeType: "application/json",
-          responseSchema: responseSchema
-        }
+      const responseText = await callOpenRouter({
+        prompt: `Rank these wines for my group. Group: ${groupDescription}. Wines available: ${winesAvailable}.`,
+        systemPrompt: systemInstruction,
+        responseFormat: { type: "json_object" }
       });
 
-      const data = JSON.parse(response.text || "{}");
+      const data = JSON.parse(responseText || "{}");
       setResult(data);
     } catch (error) {
       console.error("Party Mode Error:", error);

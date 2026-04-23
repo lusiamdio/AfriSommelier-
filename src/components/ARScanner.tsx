@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, ScanLine, Wine, Info, Sparkles, Image as ImageIcon, FileText, Moon, Sun, MessageSquare } from 'lucide-react';
-import { GoogleGenAI, Type } from '@google/genai';
+import { callOpenRouter } from '../services/openRouterService';
 
 export default function ARScanner({ onClose, onSave }: { onClose: () => void, onSave: (data: any) => void }) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -69,53 +69,45 @@ export default function ARScanner({ onClose, onSave }: { onClose: () => void, on
       : `Analyze this restaurant menu. Identify the main dishes visible. Recommend the 3 best South African wine pairings for these dishes. ${userQuery ? `\nThe user asked: "${userQuery}". Adjust recommendations accordingly.` : ''}`;
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: [
+      const systemPrompt = `You are a sommelier. You must return your response strictly as a JSON object responding with valid JSON only.
+Structure:
+{
+  "type": "string ('label' or 'menu')",
+  "wines": [
+    {
+      "name": "string",
+      "vintage": "string",
+      "region": "string",
+      "grape": "string",
+      "notes": "string",
+      "price": "string",
+      "rating": number,
+      "awards": "string",
+      "abv": "string",
+      "isOrganic": boolean,
+      "caloriesPerGlass": number,
+      "match": "string",
+      "recommendationReason": "string"
+    }
+  ]
+}
+For notes, keep them concise and relevant. Make reasonable estimations for missing data.`;
+
+      const responseText = await callOpenRouter({
+        messages: [
+          { role: "system", content: systemPrompt },
           {
-            role: 'user',
-            parts: [
-              { inlineData: { data: base64Image, mimeType } },
-              { text: promptText }
+            role: "user",
+            content: [
+              { type: "text", text: promptText },
+              { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64Image}` } }
             ]
           }
         ],
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-             type: Type.OBJECT,
-             properties: {
-               type: { type: Type.STRING, description: "'label' or 'menu'" },
-               wines: {
-                 type: Type.ARRAY,
-                 items: {
-                   type: Type.OBJECT,
-                   properties: {
-                     name: { type: Type.STRING },
-                     vintage: { type: Type.STRING },
-                     region: { type: Type.STRING },
-                     grape: { type: Type.STRING },
-                     notes: { type: Type.STRING },
-                     price: { type: Type.STRING },
-                     rating: { type: Type.INTEGER },
-                     awards: { type: Type.STRING },
-                     abv: { type: Type.STRING },
-                     isOrganic: { type: Type.BOOLEAN },
-                     caloriesPerGlass: { type: Type.INTEGER },
-                     match: { type: Type.STRING },
-                     recommendationReason: { type: Type.STRING }
-                   },
-                   required: ["name", "vintage", "region", "grape", "notes", "price", "rating", "awards", "abv", "isOrganic", "caloriesPerGlass", "match"]
-                 }
-               }
-             },
-             required: ["type", "wines"]
-           }
-        }
+        responseFormat: { type: "json_object" }
       });
 
-      const data = JSON.parse(response.text || "{}");
+      const data = JSON.parse(responseText || "{}");
       // Normalize data
       const isMenu = scanMode === 'menu' || data.type === 'menu';
       const winesList = Array.isArray(data.wines) ? data.wines : [data];

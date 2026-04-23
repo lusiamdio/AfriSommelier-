@@ -1,11 +1,11 @@
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Zap, Image as ImageIcon, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
-import { GoogleGenAI, Type } from '@google/genai';
 import { collection, addDoc } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { handleFirestoreError, OperationType } from '../utils/firestoreErrorHandler';
 import ARScanner from './ARScanner';
+import { callOpenRouter } from '../services/openRouterService';
 
 export default function ScanTab({ onSelectWine }: { onSelectWine: (wine: any) => void }) {
   const [isScanning, setIsScanning] = useState(true);
@@ -30,9 +30,7 @@ export default function ScanTab({ onSelectWine }: { onSelectWine: (wine: any) =>
     setIsProcessing(true);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      
-      // Convert file to base64 for Gemini
+      // Convert file to base64 for vision API
       const base64Data = await new Promise<string>((resolve) => {
         const r = new FileReader();
         r.onloadend = () => {
@@ -42,60 +40,45 @@ export default function ScanTab({ onSelectWine }: { onSelectWine: (wine: any) =>
         r.readAsDataURL(file);
       });
 
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: [
+      const systemPrompt = `You are a sommelier handling wine label or menu analysis. You must return your response strictly as a JSON object.
+Structure:
+{
+  "type": "string ('label' or 'menu')",
+  "wines": [
+    {
+      "name": "string",
+      "vintage": "string",
+      "region": "string",
+      "grape": "string",
+      "notes": "string",
+      "price": "string",
+      "rating": number,
+      "awards": "string",
+      "abv": "string",
+      "isOrganic": boolean,
+      "caloriesPerGlass": number,
+      "match": "string",
+      "recommendationReason": "string"
+    }
+  ]
+}
+For a single wine label, extract its details. For a restaurant menu, extract the 3 best wine options based on quality and value.`;
+
+      const responseText = await callOpenRouter({
+        messages: [
+          { role: "system", content: systemPrompt },
           {
             role: "user",
-            parts: [
-              {
-                inlineData: {
-                  mimeType: file.type,
-                  data: base64Data
-                }
-              },
-              {
-                text: `Analyze this image. Determine if it is a single wine bottle label or a restaurant wine menu.
-                If it's a menu, extract the 3 best wine options based on quality and value.`
-              }
+            content: [
+              { type: "text", text: `Analyze this image. Determine if it is a single wine bottle label or a restaurant wine menu. If it's a menu, extract the 3 best wine options based on quality and value.` },
+              { type: "image_url", image_url: { url: `data:${file.type};base64,${base64Data}` } }
             ]
           }
         ],
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              type: { type: Type.STRING, description: "'label' or 'menu'" },
-              wines: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    name: { type: Type.STRING },
-                    vintage: { type: Type.STRING },
-                    region: { type: Type.STRING },
-                    grape: { type: Type.STRING },
-                    notes: { type: Type.STRING },
-                    price: { type: Type.STRING },
-                    rating: { type: Type.INTEGER },
-                    awards: { type: Type.STRING },
-                    abv: { type: Type.STRING },
-                    isOrganic: { type: Type.BOOLEAN },
-                    caloriesPerGlass: { type: Type.INTEGER },
-                    match: { type: Type.STRING },
-                    recommendationReason: { type: Type.STRING }
-                  },
-                  required: ["name", "vintage", "region", "grape", "notes", "price", "rating", "awards", "abv", "isOrganic", "caloriesPerGlass", "match"]
-                }
-              }
-            },
-            required: ["type", "wines"]
-          }
-        }
+        responseFormat: { type: "json_object" }
       });
       
-      const data = JSON.parse(response.text || "{}");
+      const data = JSON.parse(responseText || "{}");
       
       // Normalize data
       const isMenu = data.type === 'menu';

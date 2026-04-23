@@ -162,98 +162,11 @@ export default function WineDetail({ wine, onClose }: { wine: any, onClose: () =
   };
 
   const generateMusic = async () => {
-    try {
-      if (!(await (window as any).aistudio.hasSelectedApiKey())) {
-        await (window as any).aistudio.openSelectKey();
-      }
-    } catch (e) {
-      console.error("API key selection failed", e);
-      return;
-    }
-
-    setIsGeneratingMusic(true);
-    try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || process.env.GEMINI_API_KEY });
-      const response = await ai.models.generateContentStream({
-        model: "lyria-3-clip-preview",
-        contents: `Generate a 30-second track inspired by this wine: ${wine.name}, a ${wine.grape} from ${wine.region}. The vibe should be ${wine.notes || 'elegant and complex'}.`,
-      });
-
-      let audioBase64 = "";
-      let mimeType = "audio/wav";
-
-      for await (const chunk of response) {
-        const parts = chunk.candidates?.[0]?.content?.parts;
-        if (!parts) continue;
-        for (const part of parts) {
-          if (part.inlineData?.data) {
-            if (!audioBase64 && part.inlineData.mimeType) {
-              mimeType = part.inlineData.mimeType;
-            }
-            audioBase64 += part.inlineData.data;
-          }
-        }
-      }
-
-      if (audioBase64) {
-        const binary = atob(audioBase64);
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) {
-          bytes[i] = binary.charCodeAt(i);
-        }
-        const blob = new Blob([bytes], { type: mimeType });
-        setMusicUrl(URL.createObjectURL(blob));
-      }
-    } catch (error) {
-      console.error("Error generating music:", error);
-      alert("Failed to generate music.");
-    } finally {
-      setIsGeneratingMusic(false);
-    }
+    alert("Audio generation (Lyria) is currently not supported via the OpenRouter text-only API integration.");
   };
 
   const generateImage = async () => {
-    try {
-      if (!(await (window as any).aistudio.hasSelectedApiKey())) {
-        await (window as any).aistudio.openSelectKey();
-      }
-    } catch (e) {
-      console.error("API key selection failed", e);
-      return;
-    }
-
-    setIsGeneratingImage(true);
-    try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || process.env.GEMINI_API_KEY });
-      const response = await ai.models.generateContent({
-        model: 'imagen-3.0-generate-002',
-        contents: {
-          parts: [
-            {
-              text: `A beautiful, artistic visualization of the flavors of this wine: ${wine.name}. It is a ${wine.grape} from ${wine.region}. Tasting notes: ${wine.notes || 'elegant and complex'}. Make it look like a high-end editorial photo or abstract art.`,
-            },
-          ],
-        },
-        config: {
-          imageConfig: {
-            aspectRatio: "1:1",
-            imageSize: "1K"
-          }
-        },
-      });
-      
-      for (const part of response.candidates?.[0]?.content?.parts || []) {
-        if (part.inlineData) {
-          const base64EncodeString = part.inlineData.data;
-          setGeneratedImageUrl(`data:image/png;base64,${base64EncodeString}`);
-        }
-      }
-    } catch (error) {
-      console.error("Error generating image:", error);
-      alert("Failed to generate image.");
-    } finally {
-      setIsGeneratingImage(false);
-    }
+    alert("Image generation (Imagen) is currently not supported via the OpenRouter text-only API integration.");
   };
 
   return (

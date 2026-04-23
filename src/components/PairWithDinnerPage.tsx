@@ -94,7 +94,7 @@ export default function PairWithDinnerPage({ onBack, onNavigate }: { onBack: () 
   );
 }
 
-function PairingCard({ item, index, onNavigate }: { item: any, index: number, onNavigate: (tab: string, state?: any) => void }) {
+function PairingCard({ item, index, onNavigate }: { key?: React.Key, item: any, index: number, onNavigate: (tab: string, state?: any) => void }) {
   const [showExplanation, setShowExplanation] = useState(false);
   const wineList = item.wines.split(',').map((w: string) => w.trim());
 

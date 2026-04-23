@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { motion } from 'motion/react';
 import { Camera, Search, Sparkles, ChefHat, Loader2 } from 'lucide-react';
-import { GoogleGenAI, Type } from '@google/genai';
+import { callOpenRouter } from '../services/openRouterService';
 
 export default function PairingTab() {
   const [foodInput, setFoodInput] = useState('');
@@ -13,43 +13,29 @@ export default function PairingTab() {
     setIsPairing(true);
     
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      
-      const prompt = `
-        Act as an expert AI Sommelier specializing in African wines.
-        I am eating: ${foodInput}.
-        Suggest the perfect South African wine pairing.
-      `;
+      const systemInstruction = `Act as an expert AI Sommelier specializing in African wines. You must return your response strictly as a JSON object with valid JSON only.
+Structure:
+{
+  "wine": "Name of the wine varietal or blend",
+  "region": "Wine region in South Africa",
+  "reason": "A 2-3 sentence explanation of why this pairs well with the food.",
+  "recommendations": [
+    {
+      "name": "Specific Bottle Recommendation",
+      "price": "Estimated Price in ZAR"
+    }
+  ]
+}`;
 
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: prompt,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              wine: { type: Type.STRING, description: "Name of the wine varietal or blend" },
-              region: { type: Type.STRING, description: "Wine region in South Africa" },
-              reason: { type: Type.STRING, description: "A 2-3 sentence explanation of why this pairs well with the food." },
-              recommendations: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    name: { type: Type.STRING, description: "Specific Bottle Recommendation" },
-                    price: { type: Type.STRING, description: "Estimated Price in ZAR" }
-                  },
-                  required: ["name", "price"]
-                }
-              }
-            },
-            required: ["wine", "region", "reason", "recommendations"]
-          }
-        }
+      const prompt = `I am eating: ${foodInput}.\nSuggest the perfect South African wine pairing.`;
+
+      const responseText = await callOpenRouter({
+        prompt: prompt,
+        systemPrompt: systemInstruction,
+        responseFormat: { type: "json_object" }
       });
 
-      const result = JSON.parse(response.text || '{}');
+      const result = JSON.parse(responseText || '{}');
       setPairingResult({
         food: foodInput,
         ...result
