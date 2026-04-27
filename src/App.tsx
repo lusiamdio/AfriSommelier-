@@ -65,9 +65,16 @@ export default function App() {
       }
     } else if (path.startsWith('/explore')) {
       setActiveTab('discover');
-    } else if (path.startsWith('/trending')) {
-      setActiveTab('discover');
-      setInitialDiscoverState({ query: 'Trending South African wines' });
+    } else if (path.startsWith('/trending') || path.startsWith('/search/trending') || path.startsWith('/sa')) {
+      setActiveTab('trending');
+      
+      // Determine initial filter based on route
+      if (path.includes('/news')) setInitialDiscoverState({ filter: 'News' });
+      else if (path.includes('/culture')) setInitialDiscoverState({ filter: 'Culture' });
+      else if (path.includes('/markets') || path.includes('/finance')) setInitialDiscoverState({ filter: 'Finance' });
+      else if (path.includes('/wine')) setInitialDiscoverState({ filter: 'Wine' });
+      else if (path.includes('/tech')) setInitialDiscoverState({ filter: 'Tech' });
+      else setInitialDiscoverState({ filter: 'All Trends' });
     } else if (path.startsWith('/grapes/')) {
       setActiveTab('discover');
       const grape = path.split('/')[2];
@@ -112,7 +119,7 @@ export default function App() {
           if (tab === 'ai' && state) setInitialChatState(state);
         }} />}
         {activeTab === 'profile' && <ProfileTab onNavigate={(tab) => setActiveTab(tab)} />}
-        {activeTab === 'trending' && <TrendingTab onBack={() => setActiveTab('home')} />}
+        {activeTab === 'trending' && <TrendingTab onBack={() => setActiveTab('home')} initialFilter={initialDiscoverState?.filter || 'All Trends'} />}
         {activeTab === 'pairings' && <PairWithDinnerPage onBack={() => setActiveTab('home')} onNavigate={(tab, state) => {
           setActiveTab(tab);
           if (tab === 'discover' && state) setInitialDiscoverState(state);

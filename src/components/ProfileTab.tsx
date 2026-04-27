@@ -175,24 +175,47 @@ export default function ProfileTab({ onNavigate }: { onNavigate: (tab: string) =
             </div>
           </div>
 
-          {/* TasteDNA Matrix */}
-          <div className="bg-white/5 border border-white/10 rounded-3xl p-6 relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-500 via-gold-500 to-purple-500 opacity-50"></div>
-            <div className="mb-8 flex justify-between items-end">
+          {/* TasteDNA Matrix - Improved */}
+          <div className="bg-[#121820] border border-white/10 rounded-3xl p-6 relative overflow-hidden shadow-lg">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-gold-500/10 rounded-full blur-[80px] pointer-events-none -translate-y-1/2 translate-x-1/4"></div>
+            
+            <div className="mb-6 flex justify-between items-start">
               <div>
-                <h3 className="text-lg font-serif text-white mb-1">Palate Matrix</h3>
-                <p className="text-gray-400 text-sm">Your evolving sensory profile</p>
+                <h3 className="text-xl font-serif text-white mb-2 flex items-center gap-2">
+                  <Activity size={22} className="text-gold-500" />
+                  Palate Matrix
+                </h3>
+                <p className="text-gray-400 text-sm max-w-[240px]">Your evolving sensory preferences for personalized matchmaking.</p>
               </div>
-              <Activity size={24} className="text-gold-500 opacity-50" />
+              <div className="bg-gold-500/10 border border-gold-500/20 px-3 py-1.5 rounded-full flex flex-col items-end shadow-[0_0_15px_rgba(212,175,55,0.05)]">
+                <span className="text-[10px] text-gold-500/70 font-bold uppercase tracking-widest leading-none mb-1">Palate Persona</span>
+                <span className="text-gold-400 font-serif text-sm leading-none whitespace-nowrap">
+                  {tasteDNA.Tannin > 75 && tasteDNA.Boldness > 75 ? "The Bold Traditionalist" :
+                   tasteDNA.Acidity > 75 && tasteDNA.Fruitiness > 70 ? "The Crisp Fruit Seeker" :
+                   tasteDNA.Earthiness > 75 && tasteDNA.Tannin > 60 ? "The Terroir Purist" :
+                   tasteDNA.Sweetness > 60 ? "The Lush Enthusiast" :
+                   tasteDNA.Boldness < 50 && tasteDNA.Acidity > 60 ? "The Elegant Minimalist" :
+                   "The Balanced Connoisseur"}
+                </span>
+              </div>
             </div>
             
-            <div className="space-y-5">
-              <TasteBar label="Structure & Boldness" value={tasteDNA.Boldness} color="bg-red-500/80" onChange={(val) => setTasteDNA(prev => ({ ...prev, Boldness: val }))} />
-              <TasteBar label="Tannin Profile" value={tasteDNA.Tannin} color="bg-amber-600/80" onChange={(val) => setTasteDNA(prev => ({ ...prev, Tannin: val }))} />
-              <TasteBar label="Residual Sugar" value={tasteDNA.Sweetness} color="bg-pink-500/80" onChange={(val) => setTasteDNA(prev => ({ ...prev, Sweetness: val }))} />
-              <TasteBar label="Crispness & Acidity" value={tasteDNA.Acidity} color="bg-green-500/80" onChange={(val) => setTasteDNA(prev => ({ ...prev, Acidity: val }))} />
-              <TasteBar label="Fruit Concentration" value={tasteDNA.Fruitiness} color="bg-purple-500/80" onChange={(val) => setTasteDNA(prev => ({ ...prev, Fruitiness: val }))} />
-              <TasteBar label="Earth & Minerality" value={tasteDNA.Earthiness} color="bg-stone-500/80" onChange={(val) => setTasteDNA(prev => ({ ...prev, Earthiness: val }))} />
+            <div className="grid md:grid-cols-2 gap-x-8 gap-y-6 relative z-10">
+              {/* Core Structure */}
+              <div className="space-y-5">
+                <h4 className="text-xs font-bold text-gray-500 uppercase tracking-widest border-b border-white/5 pb-2">Core Structure</h4>
+                <TasteBar label="Structure & Body" description="Light & subtle vs. Rich & full-bodied" value={tasteDNA.Boldness} color="bg-red-500/80" onChange={(val) => setTasteDNA(prev => ({ ...prev, Boldness: val }))} />
+                <TasteBar label="Tannin Profile" description="Smooth & silky vs. Grippy & structured" value={tasteDNA.Tannin} color="bg-amber-600/80" onChange={(val) => setTasteDNA(prev => ({ ...prev, Tannin: val }))} />
+                <TasteBar label="Crispness & Acidity" description="Soft & round vs. Tart & zesty" value={tasteDNA.Acidity} color="bg-green-500/80" onChange={(val) => setTasteDNA(prev => ({ ...prev, Acidity: val }))} />
+              </div>
+
+              {/* Flavor Profile */}
+              <div className="space-y-5">
+                <h4 className="text-xs font-bold text-gray-500 uppercase tracking-widest border-b border-white/5 pb-2">Flavor Profile</h4>
+                <TasteBar label="Residual Sugar" description="Bone dry vs. Lush & sweet" value={tasteDNA.Sweetness} color="bg-pink-500/80" onChange={(val) => setTasteDNA(prev => ({ ...prev, Sweetness: val }))} />
+                <TasteBar label="Fruit Concentration" description="Restrained vs. Jammy & fruit-forward" value={tasteDNA.Fruitiness} color="bg-purple-500/80" onChange={(val) => setTasteDNA(prev => ({ ...prev, Fruitiness: val }))} />
+                <TasteBar label="Earth & Minerality" description="Pure fruit vs. Savory & earthy" value={tasteDNA.Earthiness} color="bg-stone-500/80" onChange={(val) => setTasteDNA(prev => ({ ...prev, Earthiness: val }))} />
+              </div>
             </div>
           </div>
 
@@ -241,18 +264,21 @@ function WindIcon({ className }: { className?: string }) {
   return <Wine size={22} className={className} />;
 }
 
-function TasteBar({ label, value, color, onChange }: { label: string, value: number, color: string, onChange: (val: number) => void }) {
+function TasteBar({ label, description, value, color, onChange }: { label: string, description?: string, value: number, color: string, onChange: (val: number) => void }) {
   return (
     <div className="group">
-      <div className="flex justify-between text-xs mb-2">
-        <span className="text-gray-300 font-medium tracking-wide">{label}</span>
-        <span className="text-gray-500 font-mono">{value}%</span>
+      <div className="flex justify-between items-end mb-1.5">
+        <div>
+          <span className="text-gray-200 font-medium tracking-wide block text-sm">{label}</span>
+          {description && <span className="text-gray-500 text-[10px] uppercase font-semibold tracking-wider block mt-0.5">{description}</span>}
+        </div>
+        <span className="text-gold-500 font-mono text-xs">{value}%</span>
       </div>
-      <div className="relative h-2 bg-black/40 rounded-full overflow-hidden border border-white/5">
+      <div className="relative h-2.5 bg-black/40 rounded-full overflow-hidden border border-white/5 group-hover:border-white/10 transition-colors">
         <motion.div 
           animate={{ width: `${value}%` }}
           transition={{ type: 'spring', bounce: 0, duration: 0.5 }}
-          className={`absolute top-0 left-0 h-full ${color} pointer-events-none`} 
+          className={`absolute top-0 left-0 h-full ${color} pointer-events-none opacity-80`} 
         />
         <input 
           type="range" 

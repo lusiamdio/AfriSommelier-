@@ -13,11 +13,6 @@ export async function callOpenRouter({
   responseFormat?: any,
   temperature?: number
 }) {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) {
-    throw new Error("OPENROUTER_API_KEY environment variable is missing.");
-  }
-
   let finalMessages = messages || [];
   
   if (!messages) {
@@ -41,22 +36,18 @@ export async function callOpenRouter({
     payload.temperature = temperature;
   }
 
-  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+  const response = await fetch("/api/chat", {
     method: "POST",
     headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-      "HTTP-Referer": process.env.APP_URL || "http://localhost:3000",
-      "X-Title": "AI Studio Application"
+      "Content-Type": "application/json"
     },
     body: JSON.stringify(payload)
   });
 
+  const data = await response.json();
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(`OpenRouter API error (Status ${response.status}): ${errorData.error?.message || response.statusText}`);
+    throw new Error(data.error || "Failed to call OpenRouter API");
   }
 
-  const data = await response.json();
   return data.choices[0].message.content;
 }
