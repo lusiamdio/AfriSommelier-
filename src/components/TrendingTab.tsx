@@ -18,7 +18,7 @@ export default function TrendingTab({ onBack, initialFilter = 'All Trends' }: { 
     ],
     culture: [
       { title: "Amapiano track hitting #1", image: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?q=80&w=400&auto=format&fit=crop" },
-      { title: "Cape Town fashion week highlights", image: "https://images.unsplash.com/photo-1509631179647-0c500ba58088?q=80&w=400&auto=format&fit=crop" },
+      { title: "Cape Town fashion week highlights", image: "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=400&auto=format&fit=crop" },
       { title: "New Netflix series trending", image: "https://images.unsplash.com/photo-1522869635100-9f4c5e86aa37?q=80&w=400&auto=format&fit=crop" }
     ],
     financeMain: [
