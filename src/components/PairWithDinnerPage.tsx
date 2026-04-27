@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Wine, Utensils, ArrowRight, ChevronLeft, ChevronDown, ChevronUp } from 'lucide-react';
+import ExplorePairingDetail from './ExplorePairingDetail';
 
 export default function PairWithDinnerPage({ onBack, onNavigate }: { onBack: () => void, onNavigate: (tab: string, state?: any) => void }) {
+  const [selectedPairing, setSelectedPairing] = useState<any>(null);
+
   const pairings = [
     {
       title: "Braai Night",
@@ -48,6 +51,10 @@ export default function PairWithDinnerPage({ onBack, onNavigate }: { onBack: () 
     },
   ];
 
+  if (selectedPairing) {
+    return <ExplorePairingDetail pairing={selectedPairing} onBack={() => setSelectedPairing(null)} onNavigate={onNavigate} />;
+  }
+
   return (
     <div className="min-h-screen bg-[#0B0F14] text-white pb-32 overflow-x-hidden">
       {/* Header */}
@@ -74,7 +81,7 @@ export default function PairWithDinnerPage({ onBack, onNavigate }: { onBack: () 
       {/* Grid */}
       <div className="max-w-6xl mx-auto grid md:grid-cols-2 lg:grid-cols-3 gap-6 px-6">
         {pairings.map((item, index) => (
-          <PairingCard key={index} item={item} index={index} onNavigate={onNavigate} />
+          <PairingCard key={index} item={item} index={index} onNavigate={onNavigate} onSelect={() => setSelectedPairing(item)} />
         ))}
       </div>
 
@@ -94,7 +101,7 @@ export default function PairWithDinnerPage({ onBack, onNavigate }: { onBack: () 
   );
 }
 
-function PairingCard({ item, index, onNavigate }: { key?: React.Key, item: any, index: number, onNavigate: (tab: string, state?: any) => void }) {
+function PairingCard({ item, index, onNavigate, onSelect }: { key?: React.Key, item: any, index: number, onNavigate: (tab: string, state?: any) => void, onSelect: () => void }) {
   const [showExplanation, setShowExplanation] = useState(false);
   const wineList = item.wines.split(',').map((w: string) => w.trim());
 
@@ -162,7 +169,7 @@ function PairingCard({ item, index, onNavigate }: { key?: React.Key, item: any, 
           </div>
 
           <button 
-            onClick={() => onNavigate('discover', { query: item.wines })}
+            onClick={onSelect}
             className="mt-auto w-full bg-white text-black hover:bg-gray-200 py-3 rounded-xl flex items-center justify-center font-medium transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] group"
           >
             Explore Pairing <ArrowRight className="ml-2 group-hover:translate-x-1 transition-transform" size={16} />

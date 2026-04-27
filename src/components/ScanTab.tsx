@@ -1,15 +1,13 @@
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Zap, Image as ImageIcon, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
-import { useUser } from '@clerk/clerk-react';
-import { useSupabase } from '../lib/supabase';
-import { handleSupabaseError, OperationType } from '../utils/supabaseErrorHandler';
+import { collection, addDoc } from 'firebase/firestore';
+import { db, auth } from '../firebase';
+import { handleFirestoreError, OperationType } from '../utils/firestoreErrorHandler';
 import ARScanner from './ARScanner';
 import { callOpenRouter } from '../services/openRouterService';
 
 export default function ScanTab({ onSelectWine }: { onSelectWine: (wine: any) => void }) {
-  const { user } = useUser();
-  const supabase = useSupabase();
   const [isScanning, setIsScanning] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
   const [scanResult, setScanResult] = useState<any>(null);
@@ -104,31 +102,31 @@ For a single wine label, extract its details. For a restaurant menu, extract the
   };
 
   const addToCellar = async (wine: any) => {
-    if (!user || !wine) return;
-
+    if (!auth.currentUser || !wine) return;
+    
     try {
-      const { error } = await supabase.from('cellar').insert({
-        user_id: user.id,
+      await addDoc(collection(db, `users/${auth.currentUser.uid}/cellar`), {
+        userId: auth.currentUser.uid,
         name: wine.name || 'Unknown Wine',
         vintage: wine.vintage || 'NV',
         region: wine.region || 'Unknown Region',
         grape: wine.grape || '',
         status: 'Drink Now',
-        status_color: 'text-green-400',
-        image: wine.image || 'https://images.unsplash.com/photo-1584916201218-f4242ceb4809?q=80&w=800&auto=format&fit=crop',
+        statusColor: 'text-green-400',
+        image: wine.image || "https://images.unsplash.com/photo-1584916201218-f4242ceb4809?q=80&w=800&auto=format&fit=crop",
         rating: Number(wine.rating) || 90,
         awards: wine.awards || '',
         abv: wine.abv || '',
-        is_organic: wine.isOrganic || false,
-        calories_per_glass: wine.caloriesPerGlass || 120,
+        isOrganic: wine.isOrganic || false,
+        caloriesPerGlass: wine.caloriesPerGlass || 120,
         price: wine.price || '',
         notes: wine.notes || '',
+        createdAt: new Date().toISOString()
       });
-      if (error) throw error;
-      alert('Added to your cellar!');
+      alert("Added to your cellar!");
       onSelectWine(wine);
     } catch (error) {
-      handleSupabaseError(error, OperationType.CREATE, 'cellar', user.id);
+      handleFirestoreError(error, OperationType.CREATE, `users/${auth.currentUser.uid}/cellar`);
     }
   };
 

@@ -99,8 +99,8 @@ export default function PairingEngine({ onBack, onNavigate }: { onBack: () => vo
       // 5. Filter based on Vibe and Price Range
       const isLuxury = selections.vibe === 'luxury' || selections.vibe === 'date';
       
-      let baseMatch;
-      let upgradeMatch;
+      let baseMatch: any;
+      let upgradeMatch: any;
 
       if (isLuxury) {
         baseMatch = scoredWines.find(w => w.price_range === 'R300-R800' || w.price_range === 'R800+') || scoredWines[0];

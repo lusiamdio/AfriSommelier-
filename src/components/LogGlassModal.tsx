@@ -1,48 +1,41 @@
 import { useState } from 'react';
 import { motion } from 'motion/react';
 import { X, Star, Droplet } from 'lucide-react';
-import { useUser } from '@clerk/clerk-react';
-import { useSupabase } from '../lib/supabase';
-import { handleSupabaseError, OperationType } from '../utils/supabaseErrorHandler';
+import { collection, addDoc } from 'firebase/firestore';
+import { db, auth } from '../firebase';
+import { handleFirestoreError, OperationType } from '../utils/firestoreErrorHandler';
 
 export default function LogGlassModal({ wine, onClose }: { wine: any, onClose: () => void }) {
-  const { user } = useUser();
-  const supabase = useSupabase();
   const [rating, setRating] = useState(0);
   const [notes, setNotes] = useState('');
   const [occasion, setOccasion] = useState('Dinner');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleLog = async () => {
-    if (!user) return;
+    if (!auth.currentUser) return;
     setIsSubmitting(true);
     try {
-      const now = new Date().toISOString();
-      const { error } = await supabase.from('consumption').insert({
-        user_id: user.id,
-        wine_id: wine?.id && /^[0-9a-f-]{36}$/i.test(wine.id) ? wine.id : null,
-        wine_name: wine.name,
+      await addDoc(collection(db, `users/${auth.currentUser.uid}/consumption`), {
+        wineName: wine.name,
         calories: wine.caloriesPerGlass || 120,
-        date: now,
-        consumed_at: now,
+        date: new Date().toISOString(),
         rating,
         notes,
-        occasion,
+        occasion
       });
-      if (error) throw error;
-
+      
       // Track event
-      console.log('Event logged:', {
-        event: 'log_glass',
+      console.log("Event logged:", {
+        event: "log_glass",
         wine_id: wine.id || wine.name,
-        user_id: user.id,
-        timestamp: now,
+        user_id: auth.currentUser.uid,
+        timestamp: new Date().toISOString()
       });
 
       alert("Glass logged! You're on a 3-day tasting streak! 🔥");
       onClose();
     } catch (error) {
-      handleSupabaseError(error, OperationType.CREATE, 'consumption', user.id);
+      handleFirestoreError(error, OperationType.CREATE, `users/${auth.currentUser.uid}/consumption`);
     } finally {
       setIsSubmitting(false);
     }

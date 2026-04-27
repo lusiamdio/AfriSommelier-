@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, Tooltip } from 'recharts';
 import { motion, AnimatePresence } from 'motion/react';
 import { Dna, Info, Edit2, Check, X } from 'lucide-react';
-import { useUser } from '@clerk/clerk-react';
-import { useSupabase } from '../lib/supabase';
-import { handleSupabaseError, OperationType } from '../utils/supabaseErrorHandler';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { db, auth } from '../firebase';
+import { handleFirestoreError, OperationType } from '../utils/firestoreErrorHandler';
 
 // Suppress harmless Recharts warning caused by Framer Motion unmounts
 const originalWarn = console.warn;
@@ -16,12 +16,12 @@ console.warn = (...args: any[]) => {
 };
 
 const defaultTasteData = [
-  { subject: 'Boldness', You: 85, Critics: 65, Stellenbosch: 90, fullMark: 100 },
-  { subject: 'Tannin', You: 70, Critics: 80, Stellenbosch: 85, fullMark: 100 },
+  { subject: 'Structure', You: 85, Critics: 65, Stellenbosch: 90, fullMark: 100 },
+  { subject: 'Tannins', You: 70, Critics: 80, Stellenbosch: 85, fullMark: 100 },
   { subject: 'Sweetness', You: 20, Critics: 10, Stellenbosch: 15, fullMark: 100 },
   { subject: 'Acidity', You: 60, Critics: 85, Stellenbosch: 50, fullMark: 100 },
-  { subject: 'Fruitiness', You: 90, Critics: 70, Stellenbosch: 80, fullMark: 100 },
-  { subject: 'Earthiness', You: 40, Critics: 90, Stellenbosch: 60, fullMark: 100 },
+  { subject: 'Fruit', You: 90, Critics: 70, Stellenbosch: 80, fullMark: 100 },
+  { subject: 'Minerality', You: 40, Critics: 90, Stellenbosch: 60, fullMark: 100 },
 ];
 
 const CustomTooltip = ({ active, payload }: any) => {
@@ -42,8 +42,6 @@ const CustomTooltip = ({ active, payload }: any) => {
 };
 
 export default function TasteDNA() {
-  const { user } = useUser();
-  const supabase = useSupabase();
   const [showCritics, setShowCritics] = useState(false);
   const [showRegion, setShowRegion] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -52,16 +50,12 @@ export default function TasteDNA() {
 
   useEffect(() => {
     const fetchTasteProfile = async () => {
-      if (!user) return;
+      if (!auth.currentUser) return;
       try {
-        const { data, error } = await supabase
-          .from('taste_dna')
-          .select('profile')
-          .eq('user_id', user.id)
-          .maybeSingle();
-        if (error) throw error;
-        if (data?.profile) {
-          const savedData = data.profile as Record<string, number>;
+        const docRef = doc(db, `users/${auth.currentUser.uid}/profile`, 'tasteDNA');
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          const savedData = docSnap.data().profile;
           const mergedData = defaultTasteData.map(item => ({
             ...item,
             You: savedData[item.subject] !== undefined ? savedData[item.subject] : item.You
@@ -70,38 +64,29 @@ export default function TasteDNA() {
           setEditData(mergedData);
         }
       } catch (error) {
-        try {
-          handleSupabaseError(error, OperationType.GET, 'taste_dna', user.id);
-        } catch {
-          /* logged */
-        }
+        handleFirestoreError(error, OperationType.GET, `users/${auth.currentUser.uid}/profile/tasteDNA`);
       }
     };
     fetchTasteProfile();
-  }, [user, supabase]);
+  }, []);
 
   const handleSave = async () => {
-    if (!user) return;
+    if (!auth.currentUser) return;
     try {
-      const profileToSave = editData.reduce((acc: Record<string, number>, item) => {
+      const profileToSave = editData.reduce((acc: any, item) => {
         acc[item.subject] = item.You;
         return acc;
       }, {});
-
-      const { error } = await supabase.from('taste_dna').upsert(
-        {
-          user_id: user.id,
-          profile: profileToSave,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'user_id' }
-      );
-      if (error) throw error;
-
+      
+      await setDoc(doc(db, `users/${auth.currentUser.uid}/profile`, 'tasteDNA'), {
+        profile: profileToSave,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+      
       setTasteData(editData);
       setIsEditing(false);
     } catch (error) {
-      handleSupabaseError(error, OperationType.UPDATE, 'taste_dna', user.id);
+      handleFirestoreError(error, OperationType.UPDATE, `users/${auth.currentUser.uid}/profile/tasteDNA`);
     }
   };
 
@@ -123,7 +108,7 @@ export default function TasteDNA() {
         <div>
           <h3 className="text-xl font-serif font-semibold flex items-center gap-2 text-ivory">
             <Dna className="text-gold-500" size={24} />
-            Taste DNA
+            Palate Matrix
           </h3>
           <p className="text-xs text-gray-400 mt-1">Your evolving flavor profile</p>
         </div>

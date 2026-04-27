@@ -283,7 +283,7 @@ ${WINE_WISE_KNOWLEDGE.substring(0, 500)}...`;
             className="w-full bg-glass border border-glass-border rounded-full py-4 pl-12 pr-14 text-sm text-ivory placeholder-gray-400 focus:outline-none focus:border-gold-500 transition-colors"
           />
           <button 
-            onClick={handleSend}
+            onClick={() => handleSend()}
             disabled={!input.trim() || isLoading}
             className="absolute right-2 w-10 h-10 rounded-full bg-gold-500 text-wine-900 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 transition-transform"
           >

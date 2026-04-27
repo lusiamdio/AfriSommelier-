@@ -2,131 +2,57 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AnimatePresence } from 'motion/react';
 import { Home, Compass, ScanLine, MessageSquare, Grape } from 'lucide-react';
-import { useUser, AuthenticateWithRedirectCallback } from '@clerk/clerk-react';
-import { useSupabase } from './lib/supabase';
-import { readOnboarding } from './lib/onboarding';
+import { onAuthStateChanged, User } from 'firebase/auth';
+import { doc, getDocFromCache, getDocFromServer } from 'firebase/firestore';
+import { auth, db } from './firebase';
 import HomeTab from './components/HomeTab';
 import DiscoverTab from './components/DiscoverTab';
 import ScanTab from './components/ScanTab';
 import CellarTab from './components/CellarTab';
 import SommelierChat from './components/SommelierChat';
 import WineDetail from './components/WineDetail';
+import LoginScreen from './components/LoginScreen';
 import TrendingTab from './components/TrendingTab';
 import ProfileTab from './components/ProfileTab';
 import PairWithDinnerPage from './components/PairWithDinnerPage';
 import PairingEngine from './components/PairingEngine';
-import LandingPage from './components/landing/LandingPage';
-import OnboardingFlow from './components/onboarding/OnboardingFlow';
 
-/**
- * Top-level shell. Routes by raw `window.location.pathname` so we don't
- * have to add a router dependency. Three high-level surfaces:
- *
- *   /sso-callback                  → Clerk's OAuth callback handler
- *   / (signed out)                 → marketing landing page
- *   /onboard (signed in)           → 4-step palate onboarding
- *   everything else (signed in)    → existing tab dashboard
- */
 export default function App() {
-  const { isLoaded, isSignedIn, user } = useUser();
-  const supabase = useSupabase();
-  const [pathname, setPathname] = useState<string>(
-    typeof window !== 'undefined' ? window.location.pathname : '/'
-  );
-
-  // Make sure a row exists in public.users for the signed-in Clerk user
-  // so that taste_dna and other tables can use it as a foreign key.
-  useEffect(() => {
-    if (!isSignedIn || !user) return;
-    const ensureUserRow = async () => {
-      try {
-        await supabase.from('users').upsert(
-          {
-            user_id: user.id,
-            email: user.primaryEmailAddress?.emailAddress ?? null,
-          },
-          { onConflict: 'user_id', ignoreDuplicates: false }
-        );
-      } catch (error) {
-        console.error('Failed to upsert user row', error);
-      }
-    };
-    ensureUserRow();
-  }, [isSignedIn, user, supabase]);
-
-  // Listen for client-side path changes (history.pushState/back/forward).
-  useEffect(() => {
-    const sync = () => setPathname(window.location.pathname);
-    window.addEventListener('popstate', sync);
-    return () => window.removeEventListener('popstate', sync);
-  }, []);
-
-  const navigateTo = (target: string) => {
-    if (target === pathname) return;
-    window.history.pushState({}, '', target);
-    setPathname(target);
-  };
-
-  const onboarding = useMemo(() => readOnboarding(user), [user]);
-
-  // OAuth callback handling — Clerk redirects back to /sso-callback after Google sign-in.
-  if (pathname.startsWith('/sso-callback')) {
-    return (
-      <AuthenticateWithRedirectCallback
-        signInFallbackRedirectUrl="/"
-        signUpFallbackRedirectUrl="/"
-      />
-    );
-  }
-
-  if (!isLoaded) {
-    return (
-      <div className="min-h-screen bg-wine-900 flex items-center justify-center text-gold-500">
-        Loading...
-      </div>
-    );
-  }
-
-  // Unauthenticated → marketing landing page (Google sign-in CTA inside).
-  if (!isSignedIn) {
-    return <LandingPage />;
-  }
-
-  // Authenticated but onboarding incomplete → run the 4-step flow.
-  // Allowed entry points: explicit /onboard, or first-load anywhere when
-  // metadata.onboarded !== true.
-  const wantsOnboard = pathname === '/onboard' || onboarding.onboarded !== true;
-  if (wantsOnboard) {
-    return (
-      <OnboardingFlow
-        onComplete={() => {
-          navigateTo('/');
-        }}
-      />
-    );
-  }
-
-  return <Dashboard pathname={pathname} />;
-}
-
-interface DashboardProps {
-  pathname: string;
-}
-
-function Dashboard({ pathname }: DashboardProps) {
   const [activeTab, setActiveTab] = useState('home');
   const [selectedWine, setSelectedWine] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
   const [initialDiscoverState, setInitialDiscoverState] = useState<any>(null);
-  const [initialChatState, setInitialChatState] = useState<{ role: 'user' | 'model', text: string } | null>(null);
+  const [initialChatState, setInitialChatState] = useState<{ role: 'user' | 'model', text: string, autoVoice?: boolean } | null>(null);
+
+  useEffect(() => {
+    async function testConnection() {
+      try {
+        await getDocFromServer(doc(db, 'test', 'connection'));
+      } catch (error) {
+        if(error instanceof Error && error.message.includes('the client is offline')) {
+          console.error("Please check your Firebase configuration. ");
+        }
+      }
+    }
+    testConnection();
+
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     // Handle Smart Redirect Links
+    const path = window.location.pathname;
     const params = new URLSearchParams(window.location.search);
 
-    if (pathname.startsWith('/pair')) {
+    if (path.startsWith('/pair')) {
       setActiveTab('ai');
       const meal = params.get('meal');
       const mood = params.get('mood');
@@ -137,14 +63,14 @@ function Dashboard({ pathname }: DashboardProps) {
       } else {
         setInitialChatState({ role: 'model', text: `What are you eating tonight? Let me help you pair a wine.` });
       }
-    } else if (pathname.startsWith('/explore')) {
+    } else if (path.startsWith('/explore')) {
       setActiveTab('discover');
-    } else if (pathname.startsWith('/trending')) {
+    } else if (path.startsWith('/trending')) {
       setActiveTab('discover');
       setInitialDiscoverState({ query: 'Trending South African wines' });
-    } else if (pathname.startsWith('/grapes/')) {
+    } else if (path.startsWith('/grapes/')) {
       setActiveTab('discover');
-      const grape = pathname.split('/')[2];
+      const grape = path.split('/')[2];
       const grapeMap: Record<string, string> = {
         'pinotage': 'Pinotage',
         'chenin-blanc': 'Chenin Blanc',
@@ -154,12 +80,20 @@ function Dashboard({ pathname }: DashboardProps) {
         'chardonnay': 'Chardonnay'
       };
       setInitialDiscoverState({ filterGrape: grapeMap[grape] || 'All' });
-    } else if (pathname.startsWith('/sommelier')) {
+    } else if (path.startsWith('/sommelier')) {
       setActiveTab('ai');
       const voice = params.get('voice');
       setInitialChatState({ role: 'model', text: "Tell me your mood, budget, and meal, and I'll find the perfect wine.", autoVoice: voice === 'true' });
     }
-  }, [pathname]);
+  }, []);
+
+  if (loading) {
+    return <div className="min-h-screen bg-wine-900 flex items-center justify-center text-gold-500">Loading...</div>;
+  }
+
+  if (!user) {
+    return <LoginScreen />;
+  }
 
   return (
     <div className="min-h-screen bg-wine-900 text-ivory font-sans selection:bg-gold-500/30">

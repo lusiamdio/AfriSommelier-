@@ -11,13 +11,12 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
-    "@clerk/clerk-react": "^5.61.6",
     "@google/genai": "^1.50.1",
-    "@supabase/supabase-js": "^2.104.1",
     "@tailwindcss/vite": "^4.2.4",
     "@vitejs/plugin-react": "^6.0.1",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "firebase": "^12.12.1",
     "lucide-react": "^1.9.0",
     "motion": "^12.38.0",
     "react": "^19.2.5",
@@ -28,6 +27,8 @@
   "devDependencies": {
     "@types/express": "^5.0.6",
     "@types/node": "^25.6.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
     "autoprefixer": "^10.5.0",
     "tailwindcss": "^4.2.4",
     "tsx": "^4.21.0",
