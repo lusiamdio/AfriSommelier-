@@ -2,9 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, Tooltip } from 'recharts';
 import { motion, AnimatePresence } from 'motion/react';
 import { Dna, Info, Edit2, Check, X } from 'lucide-react';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { db, auth } from '../firebase';
-import { handleFirestoreError, OperationType } from '../utils/firestoreErrorHandler';
+import { supabase } from '../supabase';
 
 // Suppress harmless Recharts warning caused by Framer Motion unmounts
 const originalWarn = console.warn;
@@ -50,12 +48,12 @@ export default function TasteDNA() {
 
   useEffect(() => {
     const fetchTasteProfile = async () => {
-      if (!auth.currentUser) return;
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
       try {
-        const docRef = doc(db, `users/${auth.currentUser.uid}/profile`, 'tasteDNA');
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          const savedData = docSnap.data().profile;
+        const { data, error } = await supabase.from('profiles').select('taste_dna').eq('id', user.id).single();
+        if (data && data.taste_dna) {
+          const savedData = data.taste_dna;
           const mergedData = defaultTasteData.map(item => ({
             ...item,
             You: savedData[item.subject] !== undefined ? savedData[item.subject] : item.You
@@ -64,29 +62,30 @@ export default function TasteDNA() {
           setEditData(mergedData);
         }
       } catch (error) {
-        handleFirestoreError(error, OperationType.GET, `users/${auth.currentUser.uid}/profile/tasteDNA`);
+        console.error("Error fetching taste DNA:", error);
       }
     };
     fetchTasteProfile();
   }, []);
 
   const handleSave = async () => {
-    if (!auth.currentUser) return;
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      
       const profileToSave = editData.reduce((acc: any, item) => {
         acc[item.subject] = item.You;
         return acc;
       }, {});
       
-      await setDoc(doc(db, `users/${auth.currentUser.uid}/profile`, 'tasteDNA'), {
-        profile: profileToSave,
-        updatedAt: new Date().toISOString()
-      }, { merge: true });
+      const { error } = await supabase.from('profiles').update({ taste_dna: profileToSave }).eq('id', user.id);
+      if (error) throw error;
       
       setTasteData(editData);
       setIsEditing(false);
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `users/${auth.currentUser.uid}/profile/tasteDNA`);
+      console.error("Error saving taste DNA:", error);
+      alert("Failed to save Taste Profile.");
     }
   };
 

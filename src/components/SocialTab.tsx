@@ -38,26 +38,9 @@ export default function SocialTab() {
       <div>
         <h3 className="text-2xl font-serif font-medium mb-6">Trending in Cape Town</h3>
         <div className="space-y-6">
-          <FeedItem 
-            user="Sarah Jenkins"
-            role="Sommelier"
-            action="rated"
-            wine="Mullineux Syrah 2019"
-            rating={5}
-            comment="Absolutely stunning expression of Swartland Syrah. Perfumed, spicy, and incredibly elegant."
-            time="2 hours ago"
-            avatar="https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=150&auto=format&fit=crop"
-          />
-          <FeedItem 
-            user="David Ndlovu"
-            role="Enthusiast"
-            action="added to cellar"
-            wine="Vilafonté Series C 2018"
-            rating={null}
-            comment="Secured a case for the cellar. Can't wait to open the first one in 2028."
-            time="5 hours ago"
-            avatar="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=150&auto=format&fit=crop"
-          />
+          <div className="bg-white p-6 rounded-3xl border border-black/5 shadow-sm text-center">
+            <p className="text-ink-light text-sm">No recent activity from your network. Connect with more friends to see what they are drinking.</p>
+          </div>
         </div>
       </div>
     </div>

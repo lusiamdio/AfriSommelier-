@@ -6,6 +6,7 @@ import GiftEngineModal from './GiftEngineModal';
 import PartyModeModal from './PartyModeModal';
 import RegionModal from './RegionModal';
 import AwardsModal from './AwardsModal';
+import { supabase } from '../supabase';
 import { WINE_FARMS_KNOWLEDGE } from '../data/wineKnowledge';
 import { WINE_COURSE_KNOWLEDGE } from '../data/educationalCourseKnowledge';
 import { WINE_WISE_KNOWLEDGE } from '../data/wineWiseKnowledge';
@@ -53,41 +54,26 @@ export default function DiscoverTab({ onSelectWine, initialState }: { onSelectWi
     if (currentGrape !== 'All') filterContext += ` Must be primarily made from ${currentGrape}.`;
     if (currentPrice !== 'All') filterContext += ` Must be in the price range of ${currentPrice}.`;
 
-    try {
-      const systemInstruction = `You are a master sommelier processing a query. You must return your response strictly as a JSON object with valid JSON only.
-Structure:
-{
-  "wines": [
-    {
-      "name": "string",
-      "vintage": "string",
-      "region": "string",
-      "grape": "string",
-      "notes": "A short, elegant 2-sentence sommelier description",
-      "price": "string",
-      "rating": number,
-      "match": "string (percentage like '95%')"
-    }
-  ]
-}`;
+      try {
+        let queryBuilder = supabase.from('wines').select('*');
 
-      const userPrompt = `The user is searching for: "${searchQuery}".${filterContext}
-Suggest 3 real South African wines that perfectly match this query and these filters.
+        if (searchQuery.trim()) {
+           // Basic search by name or region or grape
+           queryBuilder = queryBuilder.or(`name.ilike.%${searchQuery}%,region.ilike.%${searchQuery}%,grape.ilike.%${searchQuery}%`);
+        }
 
-Reference Knowledge:
-${WINE_FARMS_KNOWLEDGE.substring(0, 500)}...
-${WINE_COURSE_KNOWLEDGE.substring(0, 500)}...
-${WINE_WISE_KNOWLEDGE.substring(0, 500)}...`;
+        if (currentRegion !== 'All') {
+           queryBuilder = queryBuilder.eq('region', currentRegion);
+        }
+        if (currentGrape !== 'All') {
+           queryBuilder = queryBuilder.eq('grape', currentGrape);
+        }
 
-      const responseText = await callOpenRouter({
-        prompt: userPrompt,
-        systemPrompt: systemInstruction,
-        responseFormat: { type: "json_object" }
-      });
-
-      const data = JSON.parse(responseText || "{}");
+        const { data, error } = await queryBuilder.limit(20);
+        
+        if (error) throw error;
       
-      setSearchResults(data.wines || []);
+        setSearchResults(data || []);
       } catch (error) {
         console.error("Search error:", error);
         alert("Failed to perform search. Please try again.");
@@ -308,46 +294,6 @@ ${WINE_WISE_KNOWLEDGE.substring(0, 500)}...`;
       {/* Taste DNA Section */}
       <div className="px-6">
         <TasteDNA />
-      </div>
-
-      {/* Because you liked... */}
-      <div className="mb-12">
-        <h3 className="text-xl font-semibold px-6 mb-4">Because you liked Cabernet</h3>
-        <div className="flex overflow-x-auto hide-scrollbar px-6 gap-4">
-          <WineThumbnail 
-            name="Meerlust Rubicon" 
-            region="Stellenbosch" 
-            image="https://images.unsplash.com/photo-1584916201218-f4242ceb4809?q=80&w=400&auto=format&fit=crop" 
-            onClick={() => onSelectWine({
-              name: "Meerlust Rubicon",
-              vintage: "2017",
-              region: "Stellenbosch",
-              image: "https://images.unsplash.com/photo-1584916201218-f4242ceb4809?q=80&w=400&auto=format&fit=crop"
-            })}
-          />
-          <WineThumbnail 
-            name="Vilafonté Series C" 
-            region="Paarl" 
-            image="https://images.unsplash.com/photo-1506377247377-2a5b3b417ebb?q=80&w=400&auto=format&fit=crop" 
-            onClick={() => onSelectWine({
-              name: "Vilafonté Series C",
-              vintage: "2018",
-              region: "Paarl",
-              image: "https://images.unsplash.com/photo-1506377247377-2a5b3b417ebb?q=80&w=400&auto=format&fit=crop"
-            })}
-          />
-          <WineThumbnail 
-            name="Rust en Vrede" 
-            region="Stellenbosch" 
-            image="https://images.unsplash.com/photo-1553361371-9b22f78e8b1d?q=80&w=400&auto=format&fit=crop" 
-            onClick={() => onSelectWine({
-              name: "Rust en Vrede",
-              vintage: "2019",
-              region: "Stellenbosch",
-              image: "https://images.unsplash.com/photo-1553361371-9b22f78e8b1d?q=80&w=400&auto=format&fit=crop"
-            })}
-          />
-        </div>
       </div>
 
       {/* Explore Regions */}

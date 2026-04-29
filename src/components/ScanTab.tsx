@@ -1,9 +1,7 @@
-import React, { useState, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Zap, Image as ImageIcon, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
-import { collection, addDoc } from 'firebase/firestore';
-import { db, auth } from '../firebase';
-import { handleFirestoreError, OperationType } from '../utils/firestoreErrorHandler';
+import { supabase } from '../supabase';
 import ARScanner from './ARScanner';
 import { callOpenRouter } from '../services/openRouterService';
 
@@ -102,31 +100,38 @@ For a single wine label, extract its details. For a restaurant menu, extract the
   };
 
   const addToCellar = async (wine: any) => {
-    if (!auth.currentUser || !wine) return;
+    if (!wine) return;
     
     try {
-      await addDoc(collection(db, `users/${auth.currentUser.uid}/cellar`), {
-        userId: auth.currentUser.uid,
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not logged in");
+
+      const { error } = await supabase.from('cellar').insert({
+        user_id: user.id,
         name: wine.name || 'Unknown Wine',
         vintage: wine.vintage || 'NV',
         region: wine.region || 'Unknown Region',
         grape: wine.grape || '',
         status: 'Drink Now',
-        statusColor: 'text-green-400',
+        status_color: 'text-green-400',
         image: wine.image || "https://images.unsplash.com/photo-1584916201218-f4242ceb4809?q=80&w=800&auto=format&fit=crop",
         rating: Number(wine.rating) || 90,
         awards: wine.awards || '',
         abv: wine.abv || '',
-        isOrganic: wine.isOrganic || false,
-        caloriesPerGlass: wine.caloriesPerGlass || 120,
+        is_organic: wine.isOrganic || false,
+        calories_per_glass: wine.caloriesPerGlass || 120,
         price: wine.price || '',
         notes: wine.notes || '',
-        createdAt: new Date().toISOString()
+        created_at: new Date().toISOString()
       });
+
+      if (error) throw error;
+      
       alert("Added to your cellar!");
       onSelectWine(wine);
     } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, `users/${auth.currentUser.uid}/cellar`);
+      console.error("Error adding to cellar:", error);
+      alert("Failed to add to cellar");
     }
   };
 

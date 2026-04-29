@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { ChevronLeft, Settings, Award, Flame, LogOut, Wine, Activity, MapPin, Grape, BookOpen, Hexagon, Shield, Star } from 'lucide-react';
-import { collection, query, getDocs } from 'firebase/firestore';
-import { auth, db } from '../firebase';
-import { signOut } from 'firebase/auth';
+import { supabase } from '../supabase';
 
 export default function ProfileTab({ onNavigate }: { onNavigate: (tab: string) => void }) {
   const [stats, setStats] = useState({ 
@@ -26,60 +24,154 @@ export default function ProfileTab({ onNavigate }: { onNavigate: (tab: string) =
     Earthiness: 50
   });
 
+  const [firstName, setFirstName] = useState<string>('Connoisseur');
+  const [identity, setIdentity] = useState<string>('A passionate explorer of South African terroirs. Curator of fine Cap Classiques and robust Stellenbosch reds.');
+  const [profileUrl, setProfileUrl] = useState<string | null>(null);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [editFirstName, setEditFirstName] = useState('');
+  const [editIdentity, setEditIdentity] = useState('');
+
   useEffect(() => {
+    let isMounted = true;
+    let profilesChannel: any = null;
+
     const fetchStats = async () => {
-      if (!auth.currentUser) return;
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      
       try {
-        const q = query(collection(db, `users/${auth.currentUser.uid}/consumption`));
-        const snapshot = await getDocs(q);
+        const { data: profileData } = await supabase.from('profiles').select('first_name, identity, taste_dna, avatar_url').eq('id', user.id).single();
+        if (profileData && isMounted) {
+          if (profileData.first_name) {
+             setFirstName(profileData.first_name);
+          } else if (user.email) {
+             setFirstName(user.email.split('@')[0]);
+          }
+          if (profileData.identity) {
+             setIdentity(profileData.identity);
+          }
+          if (profileData.avatar_url) {
+             setProfileUrl(profileData.avatar_url);
+          }
+          if (profileData.taste_dna) {
+             setTasteDNA(prev => ({ ...prev, ...profileData.taste_dna }));
+          }
+        }
         
-        const unique = new Set();
-        let regionCounts: Record<string, number> = {};
-        let varietalCounts: Record<string, number> = {};
+        const { data: snapshot, error } = await supabase.from('consumption').select('*').eq('user_id', user.id);
+        if (error) throw error;
+        
+        if (isMounted) {
+          const unique = new Set();
+          let regionCounts: Record<string, number> = {};
+          let varietalCounts: Record<string, number> = {};
 
-        snapshot.forEach(doc => {
-          const data = doc.data();
-          if (data.wineName) unique.add(data.wineName);
-          if (data.region) regionCounts[data.region] = (regionCounts[data.region] || 0) + 1;
-          if (data.grape) varietalCounts[data.grape] = (varietalCounts[data.grape] || 0) + 1;
-        });
+          snapshot?.forEach(doc => {
+            if (doc.wine_name) unique.add(doc.wine_name);
+            if (doc.region) regionCounts[doc.region] = (regionCounts[doc.region] || 0) + 1;
+            if (doc.grape) varietalCounts[doc.grape] = (varietalCounts[doc.grape] || 0) + 1;
+          });
 
-        // Calculate top region & varietal
-        const topRegion = Object.keys(regionCounts).sort((a,b) => regionCounts[b] - regionCounts[a])[0] || 'Stellenbosch';
-        const topVarietal = Object.keys(varietalCounts).sort((a,b) => varietalCounts[b] - varietalCounts[a])[0] || 'Pinotage';
+          // Calculate top region & varietal
+          const topRegion = Object.keys(regionCounts).sort((a,b) => regionCounts[b] - regionCounts[a])[0] || 'Stellenbosch';
+          const topVarietal = Object.keys(varietalCounts).sort((a,b) => varietalCounts[b] - varietalCounts[a])[0] || 'Pinotage';
 
-        // Determine tier
-        let tier = 'AfriSommelier Initiate';
-        if (snapshot.size >= 10) tier = 'Estate Explorer';
-        if (snapshot.size >= 30) tier = 'Terroir Master';
-        if (snapshot.size >= 50) tier = 'Grand Sommelier';
+          // Determine tier
+          let tier = 'AfriSommelier Initiate';
+          if (snapshot && snapshot.length >= 10) tier = 'Estate Explorer';
+          if (snapshot && snapshot.length >= 30) tier = 'Terroir Master';
+          if (snapshot && snapshot.length >= 50) tier = 'Grand Sommelier';
 
-        setStats({
-          glasses: snapshot.size,
-          streak: Math.max(3, Math.floor(snapshot.size / 3)), 
-          uniqueWines: unique.size,
-          topRegion,
-          topVarietal,
-          memberTier: tier
-        });
+          setStats({
+            glasses: snapshot ? snapshot.length : 0,
+            streak: Math.max(3, Math.floor((snapshot ? snapshot.length : 0) / 3)), 
+            uniqueWines: unique.size,
+            topRegion,
+            topVarietal,
+            memberTier: tier
+          });
+        }
+        
+        // Setup realtime subscription
+        profilesChannel = supabase
+          .channel('profiles_changes')
+          .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${user.id}` }, (payload) => {
+             const newProfile = payload.new;
+             if (isMounted) {
+               if (newProfile.first_name) setFirstName(newProfile.first_name);
+               if (newProfile.identity) setIdentity(newProfile.identity);
+               if (newProfile.taste_dna) setTasteDNA(prev => ({ ...prev, ...newProfile.taste_dna }));
+             }
+          })
+          .subscribe();
+
       } catch (error) {
-        import('../utils/firestoreErrorHandler').then(({ handleFirestoreError, OperationType }) => {
-          handleFirestoreError(error, OperationType.GET, `users/${auth.currentUser?.uid}/consumption`);
-        });
+         console.error('Error fetching profile stats:', error);
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
 
     fetchStats();
+
+    return () => {
+      isMounted = false;
+      if (profilesChannel) supabase.removeChannel(profilesChannel);
+    };
   }, []);
 
   const handleLogout = async () => {
     try {
-      await signOut(auth);
+      await supabase.auth.signOut();
     } catch (error) {
       console.error("Error signing out:", error);
     }
+  };
+
+  const handleEditClick = () => {
+    setEditFirstName(firstName);
+    setEditIdentity(identity);
+    setIsEditingProfile(true);
+  };
+
+  const handleSaveProfile = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      
+      const { error } = await supabase.from('profiles').update({
+        first_name: editFirstName,
+        identity: editIdentity
+      }).eq('id', user.id);
+      
+      if (error) throw error;
+      
+      setFirstName(editFirstName);
+      setIdentity(editIdentity);
+      setIsEditingProfile(false);
+    } catch (error) {
+      console.error("Error saving profile:", error);
+      alert("Failed to save profile.");
+    }
+  };
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+       const base64String = reader.result as string;
+       setProfileUrl(base64String);
+       try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) return;
+          await supabase.from('profiles').update({ avatar_url: base64String }).eq('id', user.id);
+       } catch (err) {
+          console.error("Error saving avatar URL:", err);
+       }
+    };
+    reader.readAsDataURL(file);
   };
 
   return (
@@ -108,31 +200,76 @@ export default function ProfileTab({ onNavigate }: { onNavigate: (tab: string) =
               <div className="absolute top-0 right-0 w-64 h-64 bg-gold-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4"></div>
               
               <div className="flex flex-col items-center relative z-10">
-                <div className="w-28 h-28 rounded-full overflow-hidden border-2 border-gold-500/40 p-1 mb-4 shadow-[0_0_30px_rgba(212,175,55,0.15)]">
-                  <div className="w-full h-full rounded-full overflow-hidden">
+                <div className="w-28 h-28 rounded-full overflow-hidden border-2 border-gold-500/40 p-1 mb-4 shadow-[0_0_30px_rgba(212,175,55,0.15)] relative group cursor-pointer">
+                  <div className="w-full h-full rounded-full overflow-hidden relative">
                     <img 
-                      src={auth.currentUser?.photoURL || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=150&auto=format&fit=crop"} 
+                      src={profileUrl || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=150&auto=format&fit=crop"} 
                       alt="Profile" 
                       className="w-full h-full object-cover"
                       referrerPolicy="no-referrer"
                     />
+                    <div className="absolute inset-0 bg-black/50 hidden group-hover:flex items-center justify-center transition-colors">
+                      <span className="text-white text-xs font-medium">Upload</span>
+                    </div>
                   </div>
+                  <input type="file" accept="image/*" onChange={handleAvatarUpload} className="absolute inset-0 opacity-0 cursor-pointer" />
                 </div>
                 
-                <h1 className="text-3xl font-serif font-semibold text-white mb-1">
-                  {auth.currentUser?.displayName || 'Connoisseur'}
-                </h1>
-                
-                <div className="flex items-center gap-2 text-gold-500 mb-6">
-                  <Shield size={16} />
-                  <span className="text-sm tracking-widest uppercase font-medium">{stats.memberTier}</span>
-                </div>
+                {isEditingProfile ? (
+                  <div className="w-full max-w-sm space-y-4 mb-6">
+                    <div>
+                      <label className="block text-xs uppercase tracking-widest text-gray-500 font-semibold mb-1">First Name</label>
+                      <input 
+                        type="text" 
+                        value={editFirstName} 
+                        onChange={(e) => setEditFirstName(e.target.value)}
+                        className="w-full bg-black/50 border border-white/20 rounded-xl px-4 py-2 text-white focus:outline-none focus:border-gold-500 text-center font-serif text-xl"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs uppercase tracking-widest text-gray-500 font-semibold mb-1">Identity Statement</label>
+                      <textarea 
+                        value={editIdentity} 
+                        onChange={(e) => setEditIdentity(e.target.value)}
+                        className="w-full bg-black/50 border border-white/20 rounded-xl px-4 py-2 text-white focus:outline-none focus:border-gold-500 text-center font-serif text-sm h-24 resize-none"
+                      />
+                    </div>
+                    <div className="flex gap-2 justify-center pt-2">
+                      <button 
+                        onClick={() => setIsEditingProfile(false)}
+                        className="px-4 py-2 rounded-lg text-gray-400 hover:text-white transition-colors text-sm font-medium"
+                      >
+                        Cancel
+                      </button>
+                      <button 
+                        onClick={handleSaveProfile}
+                        className="px-4 py-2 rounded-lg bg-gold-500 text-black font-medium text-sm hover:bg-gold-400 transition-colors"
+                      >
+                        Save Changes
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <h1 className="text-3xl font-serif font-semibold text-white mb-1">
+                      {firstName}
+                      <button onClick={handleEditClick} className="ml-2 text-gray-500 hover:text-gold-500 transition-colors inline-block align-middle">
+                        <Settings size={16} />
+                      </button>
+                    </h1>
+                    
+                    <div className="flex items-center gap-2 text-gold-500 mb-6">
+                      <Shield size={16} />
+                      <span className="text-sm tracking-widest uppercase font-medium">{stats.memberTier}</span>
+                    </div>
 
-                <div className="w-full h-px bg-gradient-to-r from-transparent via-white/10 to-transparent mb-6"></div>
+                    <div className="w-full h-px bg-gradient-to-r from-transparent via-white/10 to-transparent mb-6"></div>
 
-                <p className="text-center text-gray-400 text-sm font-serif italic max-w-sm leading-relaxed">
-                  "A passionate explorer of South African terroirs. Curator of fine Cap Classiques and robust Stellenbosch reds."
-                </p>
+                    <p className="text-center text-gray-400 text-sm font-serif italic max-w-sm leading-relaxed">
+                      "{identity}"
+                    </p>
+                  </>
+                )}
               </div>
             </div>
           </div>

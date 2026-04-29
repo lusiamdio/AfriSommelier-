@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { motion } from 'motion/react';
 import { X, Calendar, MapPin, Clock } from 'lucide-react';
-import { collection, addDoc } from 'firebase/firestore';
-import { db, auth } from '../firebase';
+import { supabase } from '../supabase';
 
 export default function EventModal({ onClose }: { onClose: () => void }) {
   const [title, setTitle] = useState('');
@@ -12,17 +11,24 @@ export default function EventModal({ onClose }: { onClose: () => void }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSave = async () => {
-    if (!auth.currentUser || !title || !date) return;
+    if (!title || !date) return;
     
     setIsSubmitting(true);
     try {
-      await addDoc(collection(db, `users/${auth.currentUser.uid}/events`), {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      const { error } = await supabase.from('events').insert({
+        user_id: user.id,
         title,
         date,
         time,
         location,
-        createdAt: new Date().toISOString()
+        created_at: new Date().toISOString()
       });
+      
+      if (error) throw error;
+      
       alert("Tasting event scheduled! You'll receive a reminder.");
       onClose();
     } catch (error) {

@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Plus, Heart, Wine } from 'lucide-react';
-import { collection, query, onSnapshot } from 'firebase/firestore';
-import { db, auth } from '../firebase';
-import { handleFirestoreError, OperationType } from '../utils/firestoreErrorHandler';
+import { supabase } from '../supabase';
 import AddWineModal from './AddWineModal';
 
 function calculateSmartAlert(vintage: string) {
@@ -29,38 +27,75 @@ export default function CellarTab({ onSelectWine, onNavigate }: { onSelectWine: 
   const [showAddModal, setShowAddModal] = useState(false);
 
   useEffect(() => {
-    if (!auth.currentUser) return;
+    let isMounted = true;
+    
+    const fetchCellar = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      
+      const { data, error } = await supabase
+        .from('cellar')
+        .select('*')
+        .eq('user_id', user.id);
+        
+      if (!error && data) {
+        const fetchedWines = data.map(doc => {
+          const smartAlert = calculateSmartAlert(doc.vintage);
+          return { ...doc, status: smartAlert.status, statusColor: smartAlert.color };
+        });
+        if (isMounted) setWines(fetchedWines);
+      }
+      if (isMounted) setLoading(false);
+    };
 
-    const qCellar = query(
-      collection(db, `users/${auth.currentUser.uid}/cellar`)
-    );
-    const qWishlist = query(
-      collection(db, `users/${auth.currentUser.uid}/wishlist`)
-    );
+    const fetchWishlist = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-    const unsubscribeCellar = onSnapshot(qCellar, (snapshot) => {
-      const fetchedWines = snapshot.docs.map(doc => {
-        const data = doc.data();
-        const smartAlert = calculateSmartAlert(data.vintage);
-        return { id: doc.id, ...data, status: smartAlert.status, statusColor: smartAlert.color };
-      });
-      setWines(fetchedWines);
-      setLoading(false);
-    }, (error) => {
-      setLoading(false);
-      handleFirestoreError(error, OperationType.LIST, `users/${auth.currentUser?.uid}/cellar`);
-    });
+      const { data, error } = await supabase
+        .from('wishlist')
+        .select('*')
+        .eq('user_id', user.id);
+        
+      if (!error && data && isMounted) {
+        setWishlist(data);
+      }
+    };
 
-    const unsubscribeWishlist = onSnapshot(qWishlist, (snapshot) => {
-      const fetchedWishlist = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setWishlist(fetchedWishlist);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, `users/${auth.currentUser?.uid}/wishlist`);
-    });
+    fetchCellar();
+    fetchWishlist();
+
+    const fetchUserAndSubscribe = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return null;
+      
+      const cellarChannel = supabase
+        .channel('cellar_changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'cellar', filter: `user_id=eq.${user.id}` }, () => {
+          fetchCellar();
+        })
+        .subscribe();
+        
+      const wishlistChannel = supabase
+        .channel('wishlist_changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'wishlist', filter: `user_id=eq.${user.id}` }, () => {
+          fetchWishlist();
+        })
+        .subscribe();
+        
+      return { cellarChannel, wishlistChannel };
+    };
+
+    let channelsPromise = fetchUserAndSubscribe();
 
     return () => {
-      unsubscribeCellar();
-      unsubscribeWishlist();
+      isMounted = false;
+      channelsPromise.then(channels => {
+        if (channels) {
+          supabase.removeChannel(channels.cellarChannel);
+          supabase.removeChannel(channels.wishlistChannel);
+        }
+      });
     };
   }, []);
 

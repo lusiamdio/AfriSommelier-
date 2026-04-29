@@ -5,46 +5,57 @@
 import React, { useState, useEffect } from 'react';
 import { AnimatePresence } from 'motion/react';
 import { Home, Compass, ScanLine, MessageSquare, Grape } from 'lucide-react';
-import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, getDocFromCache, getDocFromServer } from 'firebase/firestore';
-import { auth, db } from './firebase';
+import { supabase } from './supabase';
 import HomeTab from './components/HomeTab';
 import DiscoverTab from './components/DiscoverTab';
 import ScanTab from './components/ScanTab';
 import CellarTab from './components/CellarTab';
 import SommelierChat from './components/SommelierChat';
 import WineDetail from './components/WineDetail';
-import LoginScreen from './components/LoginScreen';
 import TrendingTab from './components/TrendingTab';
 import ProfileTab from './components/ProfileTab';
 import PairWithDinnerPage from './components/PairWithDinnerPage';
 import PairingEngine from './components/PairingEngine';
+import OnboardingScreen from './components/OnboardingScreen';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('home');
   const [selectedWine, setSelectedWine] = useState<any>(null);
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isOnboarding, setIsOnboarding] = useState(false);
   const [initialDiscoverState, setInitialDiscoverState] = useState<any>(null);
   const [initialChatState, setInitialChatState] = useState<{ role: 'user' | 'model', text: string, autoVoice?: boolean } | null>(null);
 
   useEffect(() => {
-    async function testConnection() {
+    const checkUser = async () => {
       try {
-        await getDocFromServer(doc(db, 'test', 'connection'));
-      } catch (error) {
-        if(error instanceof Error && error.message.includes('the client is offline')) {
-          console.error("Please check your Firebase configuration. ");
+        const { data: { user } } = await supabase.auth.getUser();
+        setUser(user);
+        if (user) {
+          const { data, error } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+          if (!data && error?.code === 'PGRST116') {
+             setIsOnboarding(true);
+          } else {
+             setIsOnboarding(false);
+          }
+        } else {
+          setIsOnboarding(true);
         }
+      } catch (error) {
+        console.error("Error connecting to Supabase: ", error);
+      } finally {
+        setLoading(false);
       }
-    }
-    testConnection();
+    };
 
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      setLoading(false);
+    checkUser();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      checkUser();
     });
-    return () => unsubscribe();
+
+    return () => subscription.unsubscribe();
   }, []);
 
   useEffect(() => {
@@ -98,8 +109,13 @@ export default function App() {
     return <div className="min-h-screen bg-wine-900 flex items-center justify-center text-gold-500">Loading...</div>;
   }
 
+  if (isOnboarding) {
+    return <OnboardingScreen onComplete={() => setIsOnboarding(false)} />;
+  }
+
   if (!user) {
-    return <LoginScreen />;
+    // Should be caught by isOnboarding, but render it just in case onboarding completes with no auth
+    return <OnboardingScreen onComplete={() => setIsOnboarding(false)} />;
   }
 
   return (

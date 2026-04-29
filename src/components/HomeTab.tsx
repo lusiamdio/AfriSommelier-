@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Sparkles, ChevronRight, Activity, Droplet, Calendar, Plus } from 'lucide-react';
-import { collection, query, onSnapshot, where, orderBy } from 'firebase/firestore';
-import { db, auth } from '../firebase';
+import { supabase } from '../supabase';
 import EventModal from './EventModal';
 
 export default function HomeTab({ onSelectWine, onNavigate }: { onSelectWine: (wine: any) => void, onNavigate: (tab: string, state?: any) => void }) {
@@ -10,54 +9,100 @@ export default function HomeTab({ onSelectWine, onNavigate }: { onSelectWine: (w
   const [caloriesThisWeek, setCaloriesThisWeek] = useState(0);
   const [events, setEvents] = useState<any[]>([]);
   const [showEventModal, setShowEventModal] = useState(false);
+  const [profileUrl, setProfileUrl] = useState<string | null>(null);
+  const [firstName, setFirstName] = useState<string>('Friend');
 
   useEffect(() => {
-    if (!auth.currentUser) return;
+    let isMounted = true;
+    
+    const fetchUserData = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      
+      const { data: profileData } = await supabase.from('profiles').select('email, first_name').eq('id', user.id).single();
+      if (profileData && profileData.first_name && isMounted) {
+         setFirstName(profileData.first_name);
+      } else if (user.email && isMounted) {
+         setFirstName(user.email.split('@')[0]);
+      }
+    };
+    
+    const fetchConsumption = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      
+      const oneWeekAgo = new Date();
+      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
 
-    // Get date for 7 days ago
-    const oneWeekAgo = new Date();
-    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+      const { data } = await supabase
+        .from('consumption')
+        .select('*')
+        .eq('user_id', user.id)
+        .gte('date', oneWeekAgo.toISOString());
+        
+      if (data && isMounted) {
+        let glasses = 0;
+        let calories = 0;
+        data.forEach(doc => {
+          glasses += 1;
+          calories += Number(doc.calories) || 120;
+        });
+        setGlassesThisWeek(glasses);
+        setCaloriesThisWeek(calories);
+      }
+    };
 
-    const q = query(
-      collection(db, `users/${auth.currentUser.uid}/consumption`),
-      where('date', '>=', oneWeekAgo.toISOString())
-    );
+    const fetchEvents = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      
+      const { data } = await supabase
+        .from('events')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('date', { ascending: true });
+        
+      if (data && isMounted) {
+        const today = new Date().toISOString().split('T')[0];
+        setEvents(data.filter(e => e.date >= today));
+      }
+    };
 
-    const unsubscribeConsumption = onSnapshot(q, (snapshot) => {
-      let glasses = 0;
-      let calories = 0;
-      snapshot.forEach((doc) => {
-        glasses += 1;
-        calories += Number(doc.data().calories) || 120;
-      });
-      setGlassesThisWeek(glasses);
-      setCaloriesThisWeek(calories);
-    }, (error) => {
-      import('../utils/firestoreErrorHandler').then(({ handleFirestoreError, OperationType }) => {
-        handleFirestoreError(error, OperationType.GET, `users/${auth.currentUser?.uid}/consumption`);
-      });
-    });
-
-    // Fetch Events
-    const qEvents = query(
-      collection(db, `users/${auth.currentUser.uid}/events`),
-      orderBy('date', 'asc')
-    );
-
-    const unsubscribeEvents = onSnapshot(qEvents, (snapshot) => {
-      const fetchedEvents = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
-      // Filter out past events
-      const today = new Date().toISOString().split('T')[0];
-      setEvents(fetchedEvents.filter(e => e.date >= today));
-    }, (error) => {
-      import('../utils/firestoreErrorHandler').then(({ handleFirestoreError, OperationType }) => {
-        handleFirestoreError(error, OperationType.GET, `users/${auth.currentUser?.uid}/events`);
-      });
-    });
+    fetchUserData();
+    fetchConsumption();
+    fetchEvents();
+    
+    const fetchUserAndSubscribe = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return null;
+      
+      const consumptionChannel = supabase
+        .channel('consumption_changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'consumption', filter: `user_id=eq.${user.id}` }, () => {
+          fetchConsumption();
+        })
+        .subscribe();
+        
+      const eventsChannel = supabase
+        .channel('events_changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'events', filter: `user_id=eq.${user.id}` }, () => {
+          fetchEvents();
+        })
+        .subscribe();
+        
+      return { consumptionChannel, eventsChannel };
+    };
+    
+    const channelsPromise = fetchUserAndSubscribe();
 
     return () => {
-      unsubscribeConsumption();
-      unsubscribeEvents();
+      isMounted = false;
+      channelsPromise.then(channels => {
+        if (channels) {
+          supabase.removeChannel(channels.consumptionChannel);
+          supabase.removeChannel(channels.eventsChannel);
+        }
+      });
     };
   }, []);
 
@@ -69,7 +114,7 @@ export default function HomeTab({ onSelectWine, onNavigate }: { onSelectWine: (w
           onClick={() => onNavigate('profile')}
           className="w-10 h-10 rounded-full overflow-hidden border border-glass-border hover:scale-105 transition-transform"
         >
-          <img src={auth.currentUser?.photoURL || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=150&auto=format&fit=crop"} alt="Profile" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+          <img src={profileUrl || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=150&auto=format&fit=crop"} alt="Profile" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
         </button>
         <div className="w-10 h-10 rounded-full glass-panel flex items-center justify-center">
           <div className="w-2 h-2 bg-gold-500 rounded-full"></div>
@@ -83,7 +128,7 @@ export default function HomeTab({ onSelectWine, onNavigate }: { onSelectWine: (w
           animate={{ opacity: 1, y: 0 }}
           className="text-4xl md:text-5xl font-serif font-semibold mb-2"
         >
-          Good evening, {auth.currentUser?.displayName?.split(' ')[0] || 'Friend'} <span className="text-transparent text-shadow-sm">🍷</span>
+          Good evening, {firstName} <span className="text-transparent text-shadow-sm">🍷</span>
         </motion.h1>
         <motion.p 
           initial={{ opacity: 0, y: 20 }}
@@ -194,81 +239,9 @@ export default function HomeTab({ onSelectWine, onNavigate }: { onSelectWine: (w
       </div>
 
       {/* Sections */}
-      <Section title="Pair with dinner" onSeeAll={() => onNavigate('pairings')} />
-      <div className="flex overflow-x-auto hide-scrollbar px-6 gap-4 mb-12">
-        <PairingCard food="Braai Meat" wine="Pinotage" image="https://images.unsplash.com/photo-1544025162-d76694265947?q=80&w=400&auto=format&fit=crop" />
-        <PairingCard food="Bobotie" wine="Chenin Blanc" image="https://images.unsplash.com/photo-1580476262798-bddd9f4b7369?q=80&w=400&auto=format&fit=crop" />
-        <PairingCard food="Cape Malay Curry" wine="Gewürztraminer" image="https://images.unsplash.com/photo-1565557623262-b51c2513a641?q=80&w=400&auto=format&fit=crop" />
-      </div>
-
-      <Section title="Trending in SA" onSeeAll={() => onNavigate('trending')} />
-      <div className="flex overflow-x-auto hide-scrollbar px-6 gap-4 mb-12">
-        <TrendingCard 
-          name="Hamilton Russell" 
-          type="Pinot Noir" 
-          price="R 850" 
-          image="https://images.unsplash.com/photo-1506377247377-2a5b3b417ebb?q=80&w=400&auto=format&fit=crop" 
-          onClick={() => onSelectWine({
-            name: "Hamilton Russell",
-            vintage: "2021",
-            region: "Hemel-en-Aarde",
-            image: "https://images.unsplash.com/photo-1506377247377-2a5b3b417ebb?q=80&w=400&auto=format&fit=crop"
-          })}
-        />
-        <TrendingCard 
-          name="Sadie Family" 
-          type="Columella" 
-          price="R 1,200" 
-          image="https://images.unsplash.com/photo-1553361371-9b22f78e8b1d?q=80&w=400&auto=format&fit=crop" 
-          onClick={() => onSelectWine({
-            name: "Sadie Family Columella",
-            vintage: "2020",
-            region: "Swartland",
-            image: "https://images.unsplash.com/photo-1553361371-9b22f78e8b1d?q=80&w=400&auto=format&fit=crop"
-          })}
-        />
-      </div>
-
       <AnimatePresence>
         {showEventModal && <EventModal onClose={() => setShowEventModal(false)} />}
       </AnimatePresence>
-    </div>
-  );
-}
-
-function Section({ title, onSeeAll }: { title: string, onSeeAll?: () => void }) {
-  return (
-    <div className="px-6 flex justify-between items-end mb-4">
-      <h3 className="text-xl font-semibold">{title}</h3>
-      <button onClick={onSeeAll} className="text-gold-500 flex items-center text-sm hover:text-gold-400 transition-colors">
-        See all <ChevronRight size={16} />
-      </button>
-    </div>
-  );
-}
-
-function PairingCard({ food, wine, image }: any) {
-  return (
-    <div className="min-w-[160px] relative rounded-2xl overflow-hidden aspect-square shrink-0">
-      <img src={image} alt={food} className="absolute inset-0 w-full h-full object-cover" referrerPolicy="no-referrer" />
-      <div className="absolute inset-0 bg-gradient-to-t from-wine-900/90 to-transparent"></div>
-      <div className="absolute bottom-0 left-0 p-4">
-        <p className="text-xs text-gray-400 mb-1">{food}</p>
-        <p className="font-serif font-medium">{wine}</p>
-      </div>
-    </div>
-  );
-}
-
-function TrendingCard({ name, type, price, image, onClick }: any) {
-  return (
-    <div onClick={onClick} className="min-w-[200px] glass-panel p-4 shrink-0 cursor-pointer hover:bg-white/5 transition-colors">
-      <div className="h-32 rounded-xl overflow-hidden mb-4">
-        <img src={image} alt={name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-      </div>
-      <h4 className="font-serif font-medium text-lg">{name}</h4>
-      <p className="text-gray-400 text-sm mb-2">{type}</p>
-      <p className="text-gold-500 font-medium">{price}</p>
     </div>
   );
 }

@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, ChevronLeft, Heart, Share, Star, Leaf, Activity, Droplet, Edit3, Check, ShoppingCart, Music, Image as ImageIcon, Loader2, Tag } from 'lucide-react';
-import { collection, addDoc, deleteDoc, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
-import { db, auth } from '../firebase';
-import { handleFirestoreError, OperationType } from '../utils/firestoreErrorHandler';
+import { supabase } from '../supabase';
 import { GoogleGenAI, Modality } from '@google/genai';
 import LogGlassModal from './LogGlassModal';
 
@@ -25,28 +23,88 @@ export default function WineDetail({ wine, onClose }: { wine: any, onClose: () =
   const [couponMessage, setCouponMessage] = useState({ text: '', type: '' });
   const [showCouponInput, setShowCouponInput] = useState(false);
 
+  const [reviews, setReviews] = useState<any[]>([]);
+  const [newReviewText, setNewReviewText] = useState('');
+  const [newReviewRating, setNewReviewRating] = useState(5);
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+
   useEffect(() => {
     const checkWishlist = async () => {
-      if (!auth.currentUser || !wine.name) return;
+      if (!wine.name) return;
       try {
-        const q = query(
-          collection(db, `users/${auth.currentUser.uid}/wishlist`),
-          where('name', '==', wine.name)
-        );
-        const querySnapshot = await getDocs(q);
-        if (!querySnapshot.empty) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        
+        const { data, error } = await supabase
+          .from('wishlist')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('name', wine.name);
+          
+        if (data && data.length > 0) {
           setIsWishlisted(true);
-          setWishlistDocId(querySnapshot.docs[0].id);
+          setWishlistDocId(data[0].id);
         }
       } catch (error) {
         console.error("Error checking wishlist:", error);
       }
     };
+
+    const fetchReviews = async () => {
+      if (!wine.name) return;
+      try {
+        const { data, error } = await supabase
+          .from('reviews')
+          .select('*')
+          .eq('wine_name', wine.name)
+          .order('created_at', { ascending: false });
+        if (!error && data) {
+          setReviews(data);
+        }
+      } catch (err) {
+        console.error("Error fetching reviews", err);
+      }
+    };
+
     checkWishlist();
+    fetchReviews();
   }, [wine.name]);
 
+  const handleSubmitReview = async () => {
+    if (!newReviewText.trim()) return;
+    setIsSubmittingReview(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not logged in");
+      
+      const { error } = await supabase.from('reviews').insert({
+        user_id: user.id,
+        wine_name: wine.name,
+        rating: newReviewRating,
+        review_text: newReviewText
+      });
+      
+      if (error) throw error;
+      
+      setNewReviewText('');
+      setNewReviewRating(5);
+      
+      // Refresh reviews
+      const { data } = await supabase
+        .from('reviews')
+        .select('*')
+        .eq('wine_name', wine.name)
+        .order('created_at', { ascending: false });
+      if (data) setReviews(data);
+    } catch (err) {
+      console.error("Error adding review", err);
+      alert("Failed to add review.");
+    } finally {
+      setIsSubmittingReview(false);
+    }
+  };
+
   const toggleWishlist = async () => {
-    if (!auth.currentUser) return;
     setIsLiking(true);
     
     // Vibrate if supported
@@ -55,35 +113,44 @@ export default function WineDetail({ wine, onClose }: { wine: any, onClose: () =
     }
 
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setIsLiking(false);
+        return;
+      }
+      
       if (isWishlisted && wishlistDocId) {
-        const q = query(
-          collection(db, `users/${auth.currentUser.uid}/wishlist`),
-          where('name', '==', wine.name)
-        );
-        const querySnapshot = await getDocs(q);
-        querySnapshot.forEach(async (docSnap) => {
-          await deleteDoc(docSnap.ref);
-        });
+        await supabase.from('wishlist').delete().eq('id', wishlistDocId);
         setIsWishlisted(false);
         setWishlistDocId(null);
       } else {
-        const docRef = await addDoc(collection(db, `users/${auth.currentUser.uid}/wishlist`), {
-          ...wine,
-          addedAt: new Date().toISOString()
-        });
+        const { data, error } = await supabase.from('wishlist').insert({
+          user_id: user.id,
+          name: wine.name,
+          vintage: wine.vintage,
+          region: wine.region,
+          image: wine.image,
+          price: wine.price,
+          created_at: new Date().toISOString()
+        }).select();
+        
+        if (error) throw error;
+        
         setIsWishlisted(true);
-        setWishlistDocId(docRef.id);
+        if (data && data.length > 0) {
+          setWishlistDocId(data[0].id);
+        }
         
         // Track event
         console.log("Event logged:", {
           event: "like_wine",
           wine_id: wine.id || wine.name,
-          user_id: auth.currentUser.uid,
+          user_id: user.id,
           timestamp: new Date().toISOString()
         });
       }
     } catch (error) {
-      handleFirestoreError(error, isWishlisted ? OperationType.DELETE : OperationType.CREATE, `users/${auth.currentUser.uid}/wishlist`);
+      console.error("Error toggling wishlist:", error);
     } finally {
       setTimeout(() => setIsLiking(false), 300);
     }
@@ -108,12 +175,14 @@ export default function WineDetail({ wine, onClose }: { wine: any, onClose: () =
     }
   };
 
-  const handleBuy = () => {
+  const handleBuy = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    
     // Track event
     console.log("Event logged:", {
       event: "buy_now_click",
       wine_id: wine.id || wine.name,
-      user_id: auth?.currentUser?.uid || 'anonymous',
+      user_id: user?.id || 'anonymous',
       timestamp: new Date().toISOString()
     });
     
@@ -145,17 +214,19 @@ export default function WineDetail({ wine, onClose }: { wine: any, onClose: () =
     : priceString;
 
   const saveNotes = async () => {
-    if (!auth.currentUser || !wine.id) return;
+    if (!wine.id) return;
     setIsSavingNotes(true);
     try {
-      const wineRef = doc(db, `users/${auth.currentUser.uid}/cellar`, wine.id);
-      await updateDoc(wineRef, {
-        personalNotes: personalNotes
-      });
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      
+      const { error } = await supabase.from('cellar').update({ notes: personalNotes }).eq('id', wine.id);
+      if (error) throw error;
+      
       setIsEditingNotes(false);
     } catch (error) {
       console.error("Error saving notes:", error);
-      handleFirestoreError(error, OperationType.UPDATE, `users/${auth.currentUser.uid}/cellar/${wine.id}`);
+      alert("Failed to save tasting notes.");
     } finally {
       setIsSavingNotes(false);
     }
@@ -354,6 +425,59 @@ export default function WineDetail({ wine, onClose }: { wine: any, onClose: () =
             )}
           </div>
         )}
+
+        {/* Community Reviews */}
+        <div className="mb-10">
+          <h3 className="text-xl font-semibold mb-6">Community Reviews</h3>
+          
+          <div className="bg-glass border border-glass-border p-4 rounded-xl mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm text-gray-300">Rate this wine:</span>
+              <div className="flex gap-1">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button key={star} onClick={() => setNewReviewRating(star)}>
+                    <Star size={20} className={star <= newReviewRating ? "fill-gold-500 text-gold-500" : "text-gray-600"} />
+                  </button>
+                ))}
+              </div>
+            </div>
+            <textarea
+              className="w-full h-24 bg-wine-900/50 border border-white/10 rounded-lg p-3 text-sm text-ivory placeholder-gray-500 mb-3 focus:outline-none focus:border-gold-500/50 resize-none"
+              placeholder="What did you think of this wine? Share your thoughts..."
+              value={newReviewText}
+              onChange={(e) => setNewReviewText(e.target.value)}
+            />
+            <button
+              onClick={handleSubmitReview}
+              disabled={isSubmittingReview || !newReviewText.trim()}
+              className="w-full bg-gold-500 text-wine-900 font-medium py-2 rounded-lg hover:bg-gold-400 transition-colors disabled:opacity-50"
+            >
+              {isSubmittingReview ? <Loader2 size={16} className="animate-spin mx-auto" /> : 'Post Review'}
+            </button>
+          </div>
+
+          <div className="space-y-4">
+            {reviews.length > 0 ? (
+              reviews.map((review) => (
+                <div key={review.id} className="glass-panel p-4 rounded-xl">
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="flex items-center gap-1">
+                      {[...Array(5)].map((_, i) => (
+                        <Star key={i} size={12} className={i < review.rating ? "fill-gold-500 text-gold-500" : "text-gray-600"} />
+                      ))}
+                    </div>
+                    <span className="text-xs text-gray-500">
+                      {new Date(review.created_at).toLocaleDateString()}
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-300 whitespace-pre-wrap">{review.review_text}</p>
+                </div>
+              ))
+            ) : (
+              <p className="text-gray-500 text-sm text-center py-4">No reviews yet. Be the first to share your thoughts!</p>
+            )}
+          </div>
+        </div>
 
         {/* Taste Graph */}
         <div className="mb-10">

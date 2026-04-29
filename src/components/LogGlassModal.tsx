@@ -1,9 +1,7 @@
 import { useState } from 'react';
 import { motion } from 'motion/react';
 import { X, Star, Droplet } from 'lucide-react';
-import { collection, addDoc } from 'firebase/firestore';
-import { db, auth } from '../firebase';
-import { handleFirestoreError, OperationType } from '../utils/firestoreErrorHandler';
+import { supabase } from '../supabase';
 
 export default function LogGlassModal({ wine, onClose }: { wine: any, onClose: () => void }) {
   const [rating, setRating] = useState(0);
@@ -12,30 +10,36 @@ export default function LogGlassModal({ wine, onClose }: { wine: any, onClose: (
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleLog = async () => {
-    if (!auth.currentUser) return;
     setIsSubmitting(true);
     try {
-      await addDoc(collection(db, `users/${auth.currentUser.uid}/consumption`), {
-        wineName: wine.name,
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not logged in");
+
+      const { error } = await supabase.from('consumption').insert({
+        user_id: user.id,
+        wine_name: wine.name,
         calories: wine.caloriesPerGlass || 120,
         date: new Date().toISOString(),
         rating,
         notes,
         occasion
       });
+
+      if (error) throw error;
       
       // Track event
       console.log("Event logged:", {
         event: "log_glass",
         wine_id: wine.id || wine.name,
-        user_id: auth.currentUser.uid,
+        user_id: user.id,
         timestamp: new Date().toISOString()
       });
 
       alert("Glass logged! You're on a 3-day tasting streak! 🔥");
       onClose();
     } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, `users/${auth.currentUser.uid}/consumption`);
+      console.error("Error saving consumption log:", error);
+      alert("Failed to log glass.");
     } finally {
       setIsSubmitting(false);
     }
