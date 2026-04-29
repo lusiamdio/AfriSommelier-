@@ -32,13 +32,12 @@ async function startServer() {
           body: JSON.stringify(apiPayload)
         });
 
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          return res.status(response.status).json({ error: `OpenRouter API error: ${errorData.error?.message || response.statusText}` });
+        if (response.ok) {
+          const data = await response.json();
+          return res.json(data);
         }
-
-        const data = await response.json();
-        return res.json(data);
+        
+        console.warn(`OpenRouter failed with status ${response.status}. Falling back to Gemini.`);
       }
 
       // Fallback to Gemini API
