@@ -68,6 +68,20 @@ export default function WineDetail({ wine, onClose }: { wine: any, onClose: () =
 
     checkWishlist();
     fetchReviews();
+
+    let reviewsChannel: any;
+    if (wine.name) {
+      reviewsChannel = supabase
+        .channel(`reviews_changes_${Date.now()}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'reviews', filter: `wine_name=eq.${wine.name}` }, () => {
+          fetchReviews();
+        })
+        .subscribe();
+    }
+
+    return () => {
+      if (reviewsChannel) supabase.removeChannel(reviewsChannel);
+    };
   }, [wine.name]);
 
   const handleSubmitReview = async () => {

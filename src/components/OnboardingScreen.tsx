@@ -221,8 +221,8 @@ export default function OnboardingScreen({ onComplete }: { onComplete: () => voi
 
   const renderIdentity = () => (
     <div className="w-full max-w-lg">
-      <h2 className="text-3xl font-serif text-ivory mb-2">Who Are You?</h2>
-      <p className="text-gray-400 mb-8 font-serif italic text-lg">Your initial profile shaping.</p>
+      <h2 className="text-3xl font-serif text-ivory mb-2">Your Wine Journey</h2>
+      <p className="text-gray-400 mb-8 font-serif italic text-lg">How would you describe your relationship with wine?</p>
       <div className="space-y-4">
         {identities.map(i => (
           <button
@@ -246,8 +246,8 @@ export default function OnboardingScreen({ onComplete }: { onComplete: () => voi
 
   const renderSliders = () => (
     <div className="w-full max-w-lg">
-      <h2 className="text-3xl font-serif text-ivory mb-2">Taste Preference Engine</h2>
-      <p className="text-gray-400 mb-8 font-serif italic text-lg">Tune your ideal palate.</p>
+      <h2 className="text-3xl font-serif text-ivory mb-2">Structure & Balance</h2>
+      <p className="text-gray-400 mb-8 font-serif italic text-lg">Define the structure of your ideal pour.</p>
       
       <div className="space-y-10">
         {[
@@ -304,8 +304,8 @@ export default function OnboardingScreen({ onComplete }: { onComplete: () => voi
 
   const renderFlavors = () => (
     <div className="w-full max-w-lg">
-      <h2 className="text-3xl font-serif text-ivory mb-2">Flavor Mapping</h2>
-      <p className="text-gray-400 mb-8 font-serif italic text-lg">Select what excites your palate.</p>
+      <h2 className="text-3xl font-serif text-ivory mb-2">Tasting Notes</h2>
+      <p className="text-gray-400 mb-8 font-serif italic text-lg">Which primary profiles do you seek in a glass?</p>
       <div className="grid grid-cols-2 gap-4">
         {flavors.map(f => {
           const isSelected = answers.flavors.includes(f.id);
