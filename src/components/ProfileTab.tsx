@@ -94,7 +94,7 @@ export default function ProfileTab({ onNavigate }: { onNavigate: (tab: string) =
         
         // Setup realtime subscription
         profilesChannel = supabase
-          .channel(`profiles_changes_${user.id}_${Date.now()}`)
+          .channel('profiles_changes')
           .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${user.id}` }, (payload) => {
              const newProfile = payload.new;
              if (isMounted) {

@@ -70,14 +70,14 @@ export default function CellarTab({ onSelectWine, onNavigate }: { onSelectWine: 
       if (!user) return null;
       
       const cellarChannel = supabase
-        .channel(`cellar_changes_${user.id}_${Date.now()}`)
+        .channel('cellar_changes')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'cellar', filter: `user_id=eq.${user.id}` }, () => {
           fetchCellar();
         })
         .subscribe();
         
       const wishlistChannel = supabase
-        .channel(`wishlist_changes_${user.id}_${Date.now()}`)
+        .channel('wishlist_changes')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'wishlist', filter: `user_id=eq.${user.id}` }, () => {
           fetchWishlist();
         })
