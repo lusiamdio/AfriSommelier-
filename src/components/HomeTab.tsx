@@ -1,8 +1,29 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Sparkles, ChevronRight, Activity, Droplet, Calendar, Plus } from 'lucide-react';
+import { Sparkles, ChevronRight, Activity, Droplet, Calendar, Plus, TrendingUp } from 'lucide-react';
 import { supabase } from '../supabase';
 import EventModal from './EventModal';
+
+const trendingNews = [
+  {
+    title: "Global Supply Shift Shapes Upcoming Vintages",
+    category: "Global News",
+    image: "https://images.unsplash.com/photo-1596758410228-568ea46a9b51?q=80&w=600&auto=format&fit=crop",
+    description: "Experts predict a rise in alternative varietals as traditional regions adapt to climate shifts this year."
+  },
+  {
+    title: "South Africa's Cap Classique Renaissance",
+    category: "Local Spotlight",
+    image: "https://images.unsplash.com/photo-1553361371-9b22f78e8b1d?q=80&w=600&auto=format&fit=crop",
+    description: "Stellenbosch producers are gaining international acclaim for traditional method sparkling wines."
+  },
+  {
+    title: "The Rise of Low-Intervention Wonders",
+    category: "Trend",
+    image: "https://images.unsplash.com/photo-1506377247377-2a5b3b417ebb?q=80&w=600&auto=format&fit=crop",
+    description: "Natural and biodynamic wines continue to see explosive growth among modern connoisseurs."
+  }
+];
 
 export default function HomeTab({ onSelectWine, onNavigate }: { onSelectWine: (wine: any) => void, onNavigate: (tab: string, state?: any) => void }) {
   const [glassesThisWeek, setGlassesThisWeek] = useState(0);
@@ -77,14 +98,14 @@ export default function HomeTab({ onSelectWine, onNavigate }: { onSelectWine: (w
       if (!user) return null;
       
       const consumptionChannel = supabase
-        .channel('consumption_changes')
+        .channel(`consumption_changes_${user.id}_${Date.now()}`)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'consumption', filter: `user_id=eq.${user.id}` }, () => {
           fetchConsumption();
         })
         .subscribe();
         
       const eventsChannel = supabase
-        .channel('events_changes')
+        .channel(`events_changes_${user.id}_${Date.now()}`)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'events', filter: `user_id=eq.${user.id}` }, () => {
           fetchEvents();
         })
@@ -196,6 +217,33 @@ export default function HomeTab({ onSelectWine, onNavigate }: { onSelectWine: (w
             </div>
             <p className="text-3xl font-serif font-semibold text-ivory">{caloriesThisWeek}</p>
           </div>
+        </div>
+      </div>
+
+      {/* Trending Now */}
+      <div className="px-6 mb-12">
+        <div className="flex justify-between items-end mb-4">
+          <h3 className="text-xl font-semibold flex items-center gap-2">
+            <TrendingUp size={20} className="text-gold-500" />
+            Trending Now
+          </h3>
+          <button onClick={() => onNavigate('discover')} className="text-gold-500 flex items-center text-sm gap-1 hover:text-gold-400 uppercase tracking-widest font-semibold text-[10px]">
+            Discover Now <ChevronRight size={14} />
+          </button>
+        </div>
+        <div className="flex overflow-x-auto hide-scrollbar gap-4 pb-4 -mx-6 px-6">
+           {trendingNews.map((news, i) => (
+             <div key={i} className="min-w-[280px] w-[280px] glass-panel p-4 rounded-3xl relative overflow-hidden shrink-0 hover:bg-white/5 transition-colors cursor-pointer" onClick={() => onNavigate('discover')}>
+                <div className="h-36 mb-4 rounded-2xl overflow-hidden relative">
+                  <img src={news.image} alt={news.title} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-md px-2 py-1 flex rounded-md items-center text-[10px] uppercase tracking-wider text-gold-500 font-bold border border-white/10">
+                     {news.category}
+                  </div>
+                </div>
+                <h4 className="font-serif font-medium text-ivory mb-2 line-clamp-2 leading-snug">{news.title}</h4>
+                <p className="text-sm text-gray-400 line-clamp-2 leading-relaxed">{news.description}</p>
+             </div>
+           ))}
         </div>
       </div>
 
